@@ -6,6 +6,36 @@
 
 ---
 
+## 📱 产品界面
+
+### 行程规划与地图导航
+
+按天查看路线、景点与住宿信息，景点可一键跳转到 Google 地图。
+
+![行程规划与 Google 地图导航](./docs/screenshots/itinerary-map.png)
+
+### 北欧自驾万能手册
+
+覆盖冰岛与挪威的交通法规、罚款规则、停车缴费、美食、拍摄机位等实用信息。
+
+![北欧自驾手册与交通规则](./docs/screenshots/guidebook-rules.png)
+
+![罗弗敦拍摄机位与详细攻略](./docs/screenshots/guidebook-photo-spots.png)
+
+### 自驾工具箱
+
+集成多币种记账、紧急电话和无人机风控工具。
+
+![多币种记账、紧急救援与无人机风控](./docs/screenshots/toolbox.png)
+
+### 票根夹
+
+集中保存机票、酒店与景点票据，支持图片和 PDF 导入及本地 OCR 解析。
+
+![机票、酒店与景点票据管理](./docs/screenshots/voucher-folder.png)
+
+---
+
 ## ✨ 功能特性
 
 - **万能手册**：冰岛 / 挪威最全的路况法规、停车缴费、应急电话、超市免税店、游玩避坑、极光猎人、拍摄机位、无人机红线等分类攻略。
