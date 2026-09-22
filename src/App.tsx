@@ -189,16 +189,16 @@ export default function App() {
           <div className="flex justify-between items-end">
             <div>
               <h1 className={`text-xl font-black tracking-tight ${theme.fontHeading}`}>
-                {activeTab === 'itinerary' && '北欧自驾行程'}
+                {activeTab === 'itinerary' && '欧洲五国行程'}
                 {activeTab === 'handbook' && '北欧自驾万能手册'}
                 {activeTab === 'toolbox' && '北欧自驾工具箱'}
                 {activeTab === 'folder' && '票根夹'}
               </h1>
               <p className="text-xs mt-1 leading-snug opacity-75 text-pretty">
-                {activeTab === 'itinerary' && '冰岛 + 罗弗敦 12 天 · 香港往返 · 五星与精品渔屋。'}
+                {activeTab === 'itinerary' && '西班牙 · 瑞士 · 荷兰 · 挪威 · 瑞典 14 天 · 四人同行。'}
                 {activeTab === 'handbook' && '冰岛与挪威的最全路况应急、超市选购与航拍红线。'}
                 {activeTab === 'toolbox' && '支持多国汇率记账换算，融合北欧无人机飞行气流风控仪。'}
-                {activeTab === 'folder' && '支持离线存储、上传本地文件或预约单截图。'}
+                {activeTab === 'folder' && '支持私有云端存储、上传本地文件或预约单截图。'}
               </p>
             </div>
           </div>
@@ -399,14 +399,14 @@ export default function App() {
 
           </AnimatePresence>
 
-          {/* 票根夹始终挂载：进站即从本机 localStorage 读取酒店/机票/票根，避免点进去才渲染 */}
+          {/* 票根夹始终挂载，避免切换时重新加载共享数据。 */}
           <div className={activeTab === 'folder' ? 'flex-1 flex flex-col overflow-hidden p-4' : 'hidden'}>
             <div className="flex-1 overflow-y-auto pb-8">
               <VoucherFolder theme={theme} onPreviewVoucher={openVoucherPreview} />
             </div>
           </div>
 
-          {/* 工具箱始终挂载：记账本进站即读取本机数据，点进去不再从 ¥0 闪到真实总额 */}
+          {/* 工具箱始终挂载，保持共享账本状态。 */}
           <div className={activeTab === 'toolbox' ? 'flex-1 flex flex-col overflow-hidden p-4 space-y-4' : 'hidden'}>
             <div className="shrink-0 flex justify-center">
               <div className={`flex gap-1 w-full max-w-sm backdrop-blur-xl ${getTabBarStyle(theme.id)}`}>

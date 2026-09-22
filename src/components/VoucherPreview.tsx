@@ -227,7 +227,7 @@ function VoucherCard({
           <div className="pt-1">
             <span className="text-[8px] font-black text-stone-400 block uppercase mb-1.5">IMAGE / DOC SOURCE</span>
             {voucher.fileData ? (
-              voucher.fileData.startsWith('data:application/pdf') ? (
+              voucher.fileType === 'application/pdf' || voucher.fileData.startsWith('data:application/pdf') ? (
                 <iframe
                   src={voucher.fileData}
                   title={voucher.title}

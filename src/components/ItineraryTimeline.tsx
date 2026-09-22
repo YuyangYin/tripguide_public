@@ -15,9 +15,14 @@ import {
   Compass, 
   ArrowRight,
   Check,
-  ExternalLink
+  ExternalLink,
+  Pencil,
+  Save,
+  X
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
+import { useSharedTable, useSharedValue } from '../lib/useSharedTable';
+import { ITINERARY_2026 } from '../data/itinerary2026';
 
 interface ItineraryTimelineProps {
   theme: ThemeConfig;
@@ -28,7 +33,7 @@ export interface ItineraryDay {
   dayNum: number;
   date: string;
   route: string;
-  region: 'finland' | 'iceland' | 'norway' | 'home';
+  region: 'finland' | 'iceland' | 'spain' | 'switzerland' | 'netherlands' | 'norway' | 'lofoten' | 'sweden' | 'home';
   regionLabel: string;
   regionEmoji: string;
   sights: string[];
@@ -279,49 +284,57 @@ const isDayCompleted = (dateStr: string, currentDate: Date): boolean => {
 
 export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
   const [expandedDay, setExpandedDay] = useState<string | null>('day-2'); // default expand Day 2 as it starts the main iceland drive
-  const [checkedDays, setCheckedDays] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem('polar_checked_days');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [days, setDays, , daysError] = useSharedTable<ItineraryDay>('itinerary', 'polar_itinerary_v2', ITINERARY_2026);
+  const [checkedDays, setCheckedDays, , checkedDaysError] = useSharedValue<Record<string, boolean>>('checked_days', 'polar_checked_days', {});
+  const [editingDay, setEditingDay] = useState<ItineraryDay | null>(null);
+  const orderedDays = useMemo(() => [...days].sort((a, b) => a.dayNum - b.dayNum), [days]);
 
   const currentDate = useMemo(() => new Date(), []);
 
   // Automatically expand active day card on page load based on real system date
   useEffect(() => {
-    const activeDay = ITINERARY_DATA.find(day => isDayToday(day.date, currentDate));
+    const activeDay = orderedDays.find(day => isDayToday(day.date, currentDate));
     if (activeDay) {
       setExpandedDay(activeDay.id);
     }
-  }, [currentDate]);
+  }, [currentDate, orderedDays]);
 
   const toggleDayCheck = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = { ...checkedDays, [id]: !checkedDays[id] };
-    setCheckedDays(updated);
-    localStorage.setItem('polar_checked_days', JSON.stringify(updated));
+    setCheckedDays((current) => ({ ...current, [id]: !current[id] }));
+  };
+
+  const saveEditingDay = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingDay) return;
+    setDays((current) => current.map((day) => day.id === editingDay.id ? editingDay : day));
+    setEditingDay(null);
   };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden h-full">
+      {(daysError || checkedDaysError) && <p role="alert" className="mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-[10px] font-bold text-red-500">云端同步异常：{daysError || checkedDaysError}</p>}
 
       {/* TIMELINE LIST CONTAINER */}
       <div className="flex-1 overflow-y-auto pr-1 relative px-1 space-y-4 pb-24 select-none scrollbar-none">
 
-        {ITINERARY_DATA.map((day) => {
+        {orderedDays.map((day) => {
           const isExpanded = expandedDay === day.id;
           const isChecked = !!checkedDays[day.id];
           const isAutoCompleted = isDayCompleted(day.date, currentDate);
           const isToday = isDayToday(day.date, currentDate);
           const isDayFinished = isChecked || isAutoCompleted;
             
-          const regionColors = {
+          const regionColors: Record<ItineraryDay['region'], string> = {
             finland: 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400',
             iceland: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
-            norway: 'bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400'
+            spain: 'bg-orange-500/10 border-orange-500/20 text-orange-600 dark:text-orange-400',
+            switzerland: 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400',
+            netherlands: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400',
+            norway: 'bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400',
+            lofoten: 'bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400',
+            sweden: 'bg-sky-500/10 border-sky-500/20 text-sky-600 dark:text-sky-400',
+            home: 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400'
           };
           const currentC = regionColors[day.region];
 
@@ -386,6 +399,14 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
                       <span className="text-[10px] font-black opacity-60 ml-auto">
                         {day.date}
                       </span>
+                      <button
+                        type="button"
+                        title="编辑当天行程"
+                        onClick={(event) => { event.stopPropagation(); setEditingDay({ ...day, sights: [...day.sights] }); }}
+                        className="rounded-full p-1 text-stone-400 transition hover:bg-sky-500/10 hover:text-sky-500"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
                     </div>
 
                     <h3 className={`text-sm font-black mt-1 leading-normal tracking-wide text-stone-800 dark:text-stone-100 ${isDayFinished ? 'line-through opacity-60' : ''}`}>
@@ -572,6 +593,46 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
           );
         })}
       </div>
+
+      <AnimatePresence>
+        {editingDay && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 grid place-items-center bg-black/55 p-4 backdrop-blur-sm"
+            onClick={() => setEditingDay(null)}
+          >
+            <motion.form
+              initial={{ y: 20, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, scale: 0.97 }}
+              onSubmit={saveEditingDay}
+              onClick={(event) => event.stopPropagation()}
+              className="max-h-[90%] w-full max-w-md space-y-3 overflow-y-auto rounded-2xl border border-white/15 bg-stone-950 p-4 text-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black">编辑第 {editingDay.dayNum} 天</h3>
+                <button type="button" onClick={() => setEditingDay(null)} className="rounded-full p-1.5 hover:bg-white/10"><X className="h-4 w-4" /></button>
+              </div>
+              {([
+                ['date', '日期（MM/DD）'], ['route', '路线'], ['schedule', '日程安排'], ['transport', '交通方式'],
+                ['drivingEstimate', '车程估算'], ['hotel', '酒店'], ['breakfast', '早餐'], ['tips', '提示'], ['highlights', '亮点'],
+              ] as const).map(([field, label]) => (
+                <label key={field} className="block text-[10px] font-bold text-white/65">
+                  {label}
+                  <textarea rows={field === 'schedule' || field === 'tips' ? 2 : 1} value={editingDay[field] as string}
+                    onChange={(event) => setEditingDay({ ...editingDay, [field]: event.target.value })}
+                    className="mt-1 w-full resize-none rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white outline-none focus:border-sky-400" />
+                </label>
+              ))}
+              <label className="block text-[10px] font-bold text-white/65">
+                景点（每行一个）
+                <textarea rows={4} value={editingDay.sights.join('\n')}
+                  onChange={(event) => setEditingDay({ ...editingDay, sights: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white outline-none focus:border-sky-400" />
+              </label>
+              <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-400 py-2.5 text-xs font-black text-slate-950"><Save className="h-4 w-4" />保存并同步</button>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

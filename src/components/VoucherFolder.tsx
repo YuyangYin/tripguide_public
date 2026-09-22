@@ -31,6 +31,7 @@ import { getCardStyle, getDropzoneStyle, getInputStyle, getTabBarStyle, getTabIt
 import { extractDocumentText } from '../lib/extractDocumentText';
 import { hasAnyFlightField, isCompleteFlightParse, parseFlightText, sortFlightsByDeparture } from '../lib/parseFlightText';
 import { expandHotelNights, hasAnyHotelField, isCompleteHotelParse, parseHotelText } from '../lib/parseHotelText';
+import { deleteVoucherFile, getVoucherUrl, uploadVoucherFile } from '../lib/voucherStorage';
 
 const getCityFromAddress = (address: string, hotelName: string) => {
   const cities = ['雷克雅未克', '罗弗敦', '维克', '赫拉', '奥斯陆', '特罗姆瑟', 'Hella', 'Vík', 'Reykjavík', 'Lofoten', 'Oslo', 'Tromsø', 'Svolvær', 'Henningsvær', 'Keflavík'];
@@ -66,6 +67,7 @@ interface VoucherItem {
   fileType: string;
   fileSize: string;
   fileData?: string; // Base64 data url
+  filePath?: string;
   uploadDate: string;
   useDate?: string;
   useTime?: string;
@@ -145,15 +147,36 @@ function NativePickerField({ type, value, onChange, placeholder, ariaLabel, inpu
 
 const DEFAULT_VOUCHERS: VoucherItem[] = [];
 
-const DEFAULT_HOTELS: HotelStay[] = [];
+const DEFAULT_HOTELS: HotelStay[] = [
+  { id: 'hotel-barcelona-0925', date: '2026-09-25', hotelName: 'Barcelona Apartment', roomType: '小红书民宿（3 晚）', address: 'Carrer Josep Pla 27, 08019 Barcelona' },
+  { id: 'hotel-wynigen-0927', date: '2026-09-27', hotelName: 'Wynigen Airbnb', roomType: '民宿（1 晚）', address: 'Wynigen, Switzerland' },
+  { id: 'hotel-amsterdam-0928', date: '2026-09-28', hotelName: 'Hotel2Stay', roomType: '2 间（1 晚）', address: 'Amsterdam, Netherlands' },
+  { id: 'hotel-hornindal-0929', date: '2026-09-29', hotelName: 'Hornindal Airbnb', roomType: '民宿（2 晚）', address: 'Harevadet 8, Volda, Møre og Romsdal 6763' },
+  { id: 'hotel-bergen-1001', date: '2026-10-01', hotelName: 'Moxy Hotel Bergen', roomType: '酒店（1 晚）', address: 'Bergen, Norway' },
+  { id: 'hotel-lofoten-1002', date: '2026-10-02', hotelName: 'Lyngvær Lodge, Kleppstad', roomType: '罗弗敦民宿（2 晚）', address: 'Veg 2804, 6, Lyngværet, 8313' },
+  { id: 'hotel-oslo-1004', date: '2026-10-04', hotelName: 'Radisson Blu Plaza Hotel, Oslo', roomType: '2 间（1 晚，不含早）', address: 'Oslo, Norway' },
+  { id: 'hotel-stockholm-1005', date: '2026-10-05', hotelName: 'AC Hotel Stockholm Ulriksdal', roomType: '2 间（1 晚，含早餐）', address: 'Stockholm, Sweden' },
+];
 
-const DEFAULT_FLIGHTS: FlightTicket[] = [];
+const DEFAULT_FLIGHTS: FlightTicket[] = [
+  { id: 'flight-ca105', flightNo: 'CA105', airline: 'Air China', depAirport: 'HKG 香港', arrAirport: 'PEK 北京', depDate: '2026-09-24', depTime: '17:45', arrTime: '21:15', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+  { id: 'flight-ca933', flightNo: 'CA933', airline: 'Air China', depAirport: 'PEK 北京', arrAirport: 'BCN 巴塞罗那', depDate: '2026-09-25', depTime: '02:50', arrTime: '08:15', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+  { id: 'flight-vy6200', flightNo: 'VY6200', airline: 'Vueling', depAirport: 'BCN 巴塞罗那', arrAirport: 'GVA 日内瓦', depDate: '2026-09-27', depTime: '07:25', arrTime: '09:05', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+  { id: 'flight-kl1948', flightNo: 'KL1948', airline: 'KLM', depAirport: 'BSL 巴塞尔', arrAirport: 'AMS 阿姆斯特丹', depDate: '2026-09-28', depTime: '18:30', arrTime: '19:55', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+  { id: 'flight-kl1163', flightNo: 'KL1163', airline: 'KLM', depAirport: 'AMS 阿姆斯特丹', arrAirport: 'BGO 卑尔根', depDate: '2026-09-29', depTime: '08:20', arrTime: '10:00', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+  { id: 'flight-sk326', flightNo: 'SK326', airline: 'SAS', depAirport: 'BGO 卑尔根', arrAirport: 'OSL 奥斯陆', depDate: '2026-10-02', depTime: '06:30', arrTime: '07:25', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+  { id: 'flight-sk4082', flightNo: 'SK4082', airline: 'SAS', depAirport: 'OSL 奥斯陆', arrAirport: 'EVE 埃文内斯', depDate: '2026-10-02', depTime: '08:40', arrTime: '10:20', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+  { id: 'flight-dy369', flightNo: 'DY369', airline: 'Norwegian', depAirport: 'EVE 埃文内斯', arrAirport: 'OSL 奥斯陆', depDate: '2026-10-04', depTime: '20:05', arrTime: '21:50', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+  { id: 'flight-dy812', flightNo: 'DY812', airline: 'Norwegian', depAirport: 'OSL 奥斯陆', arrAirport: 'ARN 斯德哥尔摩', depDate: '2026-10-05', depTime: '11:40', arrTime: '12:40', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+  { id: 'flight-ca932', flightNo: 'CA932', airline: 'Air China', depAirport: 'ARN 斯德哥尔摩', arrAirport: 'PEK 北京', depDate: '2026-10-06', depTime: '19:10', arrTime: '09:40', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+  { id: 'flight-ca101', flightNo: 'CA101', airline: 'Air China', depAirport: 'PEK 北京', arrAirport: 'HKG 香港', depDate: '2026-10-07', depTime: '12:25', arrTime: '16:40', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
+];
 
 export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolderProps) {
   const [activeSubTab, setActiveSubTab] = useState<'hotel' | 'flight' | 'ticket'>('hotel');
   
   // Flight Tickets States
-  const [flights, setFlights] = useSharedTable<FlightTicket>('flights', 'polar_flights', DEFAULT_FLIGHTS);
+  const [flights, setFlights, , flightsError] = useSharedTable<FlightTicket>('flights', 'polar_flights_v2', DEFAULT_FLIGHTS);
   const [newFlightNo, setNewFlightNo] = useState('');
   const [newAirline, setNewAirline] = useState('');
   const [newDepAirport, setNewDepAirport] = useState('');
@@ -175,7 +198,7 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
   const ignoreFlightDeleteUntil = useRef(0);
 
   // Voucher Clip States
-  const [vouchers, setVouchers] = useSharedTable<VoucherItem>('vouchers', 'polar_vouchers', DEFAULT_VOUCHERS);
+  const [vouchers, setVouchers, vouchersLoaded, vouchersSyncError] = useSharedTable<VoucherItem>('vouchers', 'polar_vouchers', DEFAULT_VOUCHERS);
   const [title, setTitle] = useState('');
   const [useDate, setUseDate] = useState('');
   const [useTime, setUseTime] = useState('');
@@ -184,10 +207,12 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileDataUrl, setSelectedFileDataUrl] = useState<string>('');
   const [showAddVoucherForm, setShowAddVoucherForm] = useState(false);
+  const [isUploadingVoucher, setIsUploadingVoucher] = useState(false);
+  const [voucherError, setVoucherError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Hotel Stays States
-  const [hotelStays, setHotelStays] = useSharedTable<HotelStay>('hotels', 'polar_hotels', DEFAULT_HOTELS);
+  const [hotelStays, setHotelStays, , hotelsError] = useSharedTable<HotelStay>('hotels', 'polar_hotels_v2', DEFAULT_HOTELS);
   const [newHotelDate, setNewHotelDate] = useState('');
   const [newHotelName, setNewHotelName] = useState('');
   const [newHotelRoom, setNewHotelRoom] = useState('');
@@ -219,12 +244,26 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
   const isFrosted = theme.id === 'frosted';
   const isMidnight = theme.id === 'midnight';
 
-  // NOTE: 三个数据集（vouchers / hotels / flights）通过 useSharedTable 管理，
-  // 开源版已移除 Supabase，全部仅存于本机 localStorage——仅本人可见、不与任何服务端或他人同步。
-  // 首次加载、写入持久化都由 hook 内部完成，这里不再重复。
+  useEffect(() => {
+    if (!vouchersLoaded) return;
+    const legacy = vouchers.filter((voucher) => voucher.fileData?.startsWith('data:') && !voucher.filePath);
+    if (legacy.length === 0) return;
+    void Promise.all(legacy.map(async (voucher) => {
+      const response = await fetch(voucher.fileData!);
+      const blob = await response.blob();
+      const file = new File([blob], voucher.fileName, { type: voucher.fileType || blob.type });
+      const filePath = await uploadVoucherFile(file);
+      return { ...voucher, filePath, fileData: undefined };
+    })).then((migrated) => {
+      const byId = new Map(migrated.map((voucher) => [voucher.id, voucher]));
+      setVouchers((current) => current.map((voucher) => byId.get(voucher.id) || voucher));
+    }).catch((error) => setVoucherError(error instanceof Error ? error.message : '旧票据迁移失败'));
+  }, [vouchers, vouchersLoaded, setVouchers]);
+
+  // Three datasets are cached locally and synchronized through Supabase.
 
   // 保留 saveXxx 别名，避免下面 10+ 处调用点全部改动。
-  // 由于 useSharedTable 的 setter 已经把 localStorage + Supabase 都写好了，
+  // useSharedTable persists both the local cache and cloud rows.
   // 这里直接转发即可。
   const saveVouchers = setVouchers;
   const saveHotels   = setHotelStays;
@@ -446,9 +485,20 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const handleAddVoucher = (e: React.FormEvent) => {
+  const handleAddVoucher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !selectedFile) return;
+
+    setIsUploadingVoucher(true);
+    setVoucherError('');
+    let filePath: string;
+    try {
+      filePath = await uploadVoucherFile(selectedFile);
+    } catch (error) {
+      setVoucherError(error instanceof Error ? error.message : '文件上传失败，请稍后重试');
+      setIsUploadingVoucher(false);
+      return;
+    }
 
     const newItem: VoucherItem = {
       id: Date.now().toString(),
@@ -457,7 +507,7 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
       fileName: selectedFile.name,
       fileType: selectedFile.type,
       fileSize: formatBytes(selectedFile.size),
-      fileData: selectedFileDataUrl || undefined,
+      filePath,
       uploadDate: new Date().toISOString().split('T')[0],
       useDate: useDate || undefined,
       useTime: useTime || undefined,
@@ -474,6 +524,7 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
     setCategory('ticket');
     setSelectedFile(null);
     setSelectedFileDataUrl('');
+    setIsUploadingVoucher(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -484,8 +535,10 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
     setConfirmModal({
       isOpen: true,
       title: '确认删除票根',
-      message: '你确认要删除该票根文件吗？该操作将从离线保险箱中永久移除。',
+      message: '你确认要删除该票根文件吗？该操作会从共享云端永久移除。',
       onConfirm: () => {
+        const item = vouchers.find((voucher) => voucher.id === id);
+        if (item?.filePath) void deleteVoucherFile(item.filePath).catch(() => undefined);
         const updated = vouchers.filter(item => item.id !== id);
         saveVouchers(updated);
         onPreviewVoucher(null);
@@ -742,6 +795,11 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
 
   return (
     <div className={`p-4 space-y-5 transition-all duration-300 relative ${getCardStyle(theme.id, 'primary')}`}>
+      {(flightsError || hotelsError || vouchersSyncError) && (
+        <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-[10px] font-bold text-red-500">
+          云端同步异常：{flightsError || hotelsError || vouchersSyncError}
+        </p>
+      )}
 
       {/* Three Tab Toggle switch headers inside the Voucher folder */}
       <div className={`flex gap-1 select-none w-full ${getTabBarStyle(theme.id)}`}>
@@ -1489,23 +1547,24 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
                       <div className="space-y-1">
                         <UploadCloud className="w-8 h-8 text-stone-400 mx-auto opacity-80" />
                         <p className="text-xs font-normal">点击选择本地预定截图，网页端支持拖拽传入</p>
-                        <p className="text-[9px] opacity-65">文件均支持离线存储</p>
+                        <p className="text-[9px] opacity-65">文件将加密上传到共享云端</p>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
+              {voucherError && <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-[10px] font-bold text-red-500">{voucherError}</p>}
               <button
                 type="submit"
-                disabled={!selectedFile || !title.trim()}
+                disabled={!selectedFile || !title.trim() || isUploadingVoucher}
                 className={`w-full py-2.5 text-xs flex items-center justify-center gap-1 cursor-pointer ${
-                  !selectedFile || !title.trim()
+                  !selectedFile || !title.trim() || isUploadingVoucher
                     ? 'opacity-40 cursor-not-allowed'
                     : getPrimaryButtonStyle(theme.id)
                 }`}
               >
-                🎟️ 塞入票根夹中
+                {isUploadingVoucher ? '正在上传到共享云端…' : '🎟️ 塞入票根夹中'}
               </button>
             </form>
           )}
@@ -1520,7 +1579,19 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
                   return (
                     <div
                       key={item.id}
-                      onClick={() => onPreviewVoucher(item, vouchers)}
+                      onClick={async () => {
+                        if (!item.filePath) {
+                          onPreviewVoucher(item, vouchers);
+                          return;
+                        }
+                        try {
+                          const signedUrl = await getVoucherUrl(item.filePath);
+                          const withUrl = { ...item, fileData: signedUrl };
+                          onPreviewVoucher(withUrl, vouchers.map((voucher) => voucher.id === item.id ? withUrl : voucher));
+                        } catch (error) {
+                          setVoucherError(error instanceof Error ? error.message : '票据预览失败');
+                        }
+                      }}
                       className={`p-3 text-xs flex items-center justify-between transition-all cursor-pointer relative overflow-hidden group ${getCardStyle(theme.id, 'interactive')}`}
                     >
                       <div className="flex gap-2.5 items-center min-w-0 pr-2">

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ThemeConfig } from '../types';
-import { Plus, Trash2, Coins, Receipt, ArrowUpDown, CreditCard, CircleUserRound } from 'lucide-react';
+import { Plus, Trash2, Coins, Receipt, ArrowUpDown, CreditCard, CircleUserRound, Pencil, X } from 'lucide-react';
 import { getCardStyle, getInputStyle, getPrimaryButtonStyle } from '../lib/themeStyles';
-import { useSharedTable } from '../lib/useSharedTable';
+import { useSharedTable, useSharedValue } from '../lib/useSharedTable';
 import { createPayerProfile, getExpensePayers, getPayerDirectory, normalizePayerName, PayerProfile } from '../lib/expenseAttribution';
 import { sanitizeAmountInput } from '../lib/expenseInput';
 import { NordicAnimalAvatar } from './NordicAnimalAvatar';
@@ -34,7 +34,7 @@ const CATEGORIES = [
   { id: 'other', name: '🛠️ 其他', color: '#6B7280' },
 ];
 
-// Default rates relative to CNY (user can override manually; persisted in localStorage)
+// Default rates relative to CNY (travelers can override and share them).
 const DEFAULT_RATES: Record<'CNY' | 'ISK' | 'NOK' | 'EUR', number> = {
   CNY: 1,
   ISK: 0.051, // 1 ISK = 0.051 CNY
@@ -44,6 +44,10 @@ const DEFAULT_RATES: Record<'CNY' | 'ISK' | 'NOK' | 'EUR', number> = {
 
 const DEFAULT_EXPENSES: ExpenseItem[] = [];
 const PAYER_DIRECTORY_ID = '__payer_directory__';
+const TRIP_BUDGET = 105849.96;
+const BUDGET_CATEGORIES = [
+  ['大交通', 37914], ['租车与本地交通', 14349], ['景点', 4685], ['住宿', 21969.96], ['餐饮与日常', 26932],
+] as const;
 
 const createPayerDirectoryRow = (profiles: PayerProfile[]): ExpenseItem => ({
   id: PAYER_DIRECTORY_ID,
@@ -56,16 +60,16 @@ const createPayerDirectoryRow = (profiles: PayerProfile[]): ExpenseItem => ({
 });
 
 export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
-  // 账本：仅存于本机 localStorage，数据私有、不与任何人实时同步（开源版已移除 Supabase）
-  const [expenses, setExpenses, expensesLoaded] = useSharedTable<ExpenseItem>('expenses', 'polar_expenses', DEFAULT_EXPENSES);
+  // Shared ledger with local cache and Supabase realtime synchronization.
+  const [expenses, setExpenses, expensesLoaded, expensesError] = useSharedTable<ExpenseItem>('expenses', 'polar_expenses', DEFAULT_EXPENSES);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<'CNY' | 'ISK' | 'NOK' | 'EUR'>('ISK');
   const [category, setCategory] = useState('🏠 住宿');
   const [selectedPayers, setSelectedPayers] = useState<PayerProfile[]>([]);
-  // Manually editable exchange rates (falls back to DEFAULT_RATES per currency)
-  // 汇率保持本地存储：这是个人偏好，不共享
-  const [rates, setRates] = useState<typeof DEFAULT_RATES>(DEFAULT_RATES);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // Exchange rates are shared by all signed-in travelers.
+  const [rates, setRates, , ratesError] = useSharedValue('exchange_rates', 'polar_rates', DEFAULT_RATES);
   // Shared frosted-glass confirmation for clearing the ledger or deleting one expense.
   const [expenseConfirm, setExpenseConfirm] = useState<
     { type: 'clear' } | { type: 'delete'; item: ExpenseItem } | null
@@ -83,19 +87,6 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
     () => payerDirectoryRow ? getExpensePayers(payerDirectoryRow) : getPayerDirectory(ledgerExpenses),
     [ledgerExpenses, payerDirectoryRow]
   );
-
-  // Load rates on mount（账本由 useSharedTable 负责加载）
-  useEffect(() => {
-    const savedRates = localStorage.getItem('polar_rates');
-    if (savedRates) {
-      try {
-        const parsed = JSON.parse(savedRates) as Partial<typeof DEFAULT_RATES>;
-        setRates({ ...DEFAULT_RATES, ...parsed });
-      } catch {
-        setRates(DEFAULT_RATES);
-      }
-    }
-  }, []);
 
   // Migrate historical payer data into an independent shared directory once.
   // After this row exists, deleting every expense for a payer does not remove the payer option.
@@ -121,7 +112,6 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
       else return; // 非法输入忽略
     }
     setRates(next);
-    localStorage.setItem('polar_rates', JSON.stringify(next));
   };
 
   // Convert amount to CNY (uses current editable rates)
@@ -139,7 +129,7 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
     if (!title.trim() || !amount || isNaN(Number(amount)) || selectedPayers.length === 0) return;
 
     const newItem: ExpenseItem = {
-      id: Date.now().toString(),
+      id: editingId || Date.now().toString(),
       title: title.trim(),
       amount: Math.abs(Number(amount)),
       currency,
@@ -148,10 +138,29 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
       payers: selectedPayers
     };
 
-    const updated = [newItem, ...expenses];
-    setExpenses(updated);
+    setExpenses((current) => editingId
+      ? current.map((item) => item.id === editingId ? newItem : item)
+      : [newItem, ...current]);
     setTitle('');
     setAmount('');
+    setSelectedPayers([]);
+    setEditingId(null);
+  };
+
+  const handleEditExpense = (item: ExpenseItem) => {
+    setEditingId(item.id);
+    setTitle(item.title);
+    setAmount(String(item.amount));
+    setCurrency(item.currency);
+    setCategory(item.category);
+    setSelectedPayers(getExpensePayers(item));
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setTitle('');
+    setAmount('');
+    setSelectedPayers([]);
   };
 
   const savePayerDirectory = (profiles: PayerProfile[]) => {
@@ -221,6 +230,9 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
 
   return (
     <div className={`p-4 space-y-5 transition-all duration-300 relative ${getCardStyle(theme.id, 'primary')}`}>
+      {(expensesError || ratesError) && (
+        <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-[10px] font-bold text-red-500">云端同步异常：{expensesError || ratesError}</p>
+      )}
       {/* Header Ledger Dashboard */}
       <div className={`p-4 relative overflow-hidden ${getCardStyle(theme.id, 'subcard')}`}>
         <div className="flex justify-between items-center mb-1">
@@ -287,6 +299,18 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className={`p-3 ${getCardStyle(theme.id, 'subcard')}`}>
+        <div className="flex items-center justify-between text-[10px] font-black">
+          <span>Excel 计划预算（4 人）</span>
+          <span>¥{TRIP_BUDGET.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] opacity-70">
+          {BUDGET_CATEGORIES.map(([name, value]) => <span key={name} className="flex justify-between gap-2"><span>{name}</span><span>¥{value.toLocaleString()}</span></span>)}
+          <span className="flex justify-between gap-2 font-bold"><span>人均</span><span>¥26,462.49</span></span>
+        </div>
+        <p className="mt-2 text-[9px] opacity-55">计划预算与上方实际账单分开统计。</p>
       </div>
 
       {/* Visual Progress Bar Chart */}
@@ -399,8 +423,14 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
           type="submit"
           className={`w-full py-2 text-xs transition-all flex items-center justify-center gap-1 cursor-pointer ${getPrimaryButtonStyle(theme.id)}`}
         >
-          <Plus className="w-4 h-4" /> 记录这笔账
+          {editingId ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          {editingId ? '保存账单修改' : '记录这笔账'}
         </button>
+        {editingId && (
+          <button type="button" onClick={cancelEdit} className="flex w-full items-center justify-center gap-1 py-1.5 text-[10px] font-bold opacity-70 hover:opacity-100">
+            <X className="h-3 w-3" /> 取消编辑
+          </button>
+        )}
       </form>
 
       {/* Transaction list */}
@@ -458,6 +488,13 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
                     <span className="font-black text-right shrink-0">
                       ¥{convertToCNY(item.amount, item.currency).toFixed(1)}
                     </span>
+                    <button
+                      aria-label={`编辑支出 ${item.title}`}
+                      onClick={() => handleEditExpense(item)}
+                      className="p-1 rounded-full text-stone-400 hover:text-sky-500 hover:bg-sky-500/10 transition-colors cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       type="button"
                       aria-label={`删除支出 ${item.title}`}
