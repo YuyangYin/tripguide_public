@@ -1,0 +1,22 @@
+export const NORDIC_ANIMAL_AVATARS = [
+  { name: '小北极熊', bg: '#DDEFF2', fur: '#FFFDF7', accent: '#85C7CF', kind: 'bear' },
+  { name: '小北极狐', bg: '#E6ECF7', fur: '#F8FBFF', accent: '#98AEDD', kind: 'fox' },
+  { name: '小驯鹿', bg: '#F4E5D5', fur: '#C9956A', accent: '#7F5941', kind: 'reindeer' },
+  { name: '小海鹦', bg: '#DCEDEA', fur: '#27343B', accent: '#F39A5B', kind: 'puffin' },
+  { name: '小海豹', bg: '#E5EAF0', fur: '#B9C4CE', accent: '#79909E', kind: 'seal' },
+  { name: '小蓝鲸', bg: '#D9EDF5', fur: '#76B8CE', accent: '#4C8FA9', kind: 'whale' },
+  { name: '小雪鸮', bg: '#EEF0E5', fur: '#FFFDF5', accent: '#C7A85A', kind: 'owl' },
+  { name: '小雪兔', bg: '#F2E8EF', fur: '#FFF9FC', accent: '#D6A7C3', kind: 'hare' },
+  { name: '小驼鹿', bg: '#E8E5D7', fur: '#A97D58', accent: '#6F5541', kind: 'moose' },
+  { name: '小水獭', bg: '#DDEBE5', fur: '#9C7457', accent: '#D7B696', kind: 'otter' },
+  { name: '小猞猁', bg: '#EEE2D6', fur: '#C99A6B', accent: '#6E5240', kind: 'lynx' },
+  { name: '小灰狼', bg: '#E3E8EB', fur: '#8C9AA3', accent: '#65737C', kind: 'wolf' },
+  { name: '小绵羊', bg: '#E9E7F3', fur: '#FFFDF8', accent: '#A99BC8', kind: 'sheep' },
+  { name: '小山羊', bg: '#ECE8DE', fur: '#E7D7BA', accent: '#9B805A', kind: 'goat' },
+  { name: '小天鹅', bg: '#DDEEF1', fur: '#FFFDF8', accent: '#E9A064', kind: 'swan' },
+  { name: '小海象', bg: '#EADFD7', fur: '#B88771', accent: '#F4E5C6', kind: 'walrus' },
+  { name: '小独角鲸', bg: '#DFE9F6', fur: '#94B8D8', accent: '#F1C7D9', kind: 'narwhal' },
+  { name: '小红松鼠', bg: '#F2E3D3', fur: '#C8794B', accent: '#F0B77D', kind: 'squirrel' },
+  { name: '小刺猬', bg: '#E8E6D8', fur: '#9D7958', accent: '#D9B48D', kind: 'hedgehog' },
+  { name: '小麝牛', bg: '#E5DDD4', fur: '#745646', accent: '#C6A376', kind: 'muskox' }
+] as const;

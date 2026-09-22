@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Mobile viewport & safe-area foundations (do not affect the 1:1 desktop phone-frame look) */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  /* Prevent iOS Safari from letting the body scroll behind the fixed layout */
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Extra breakpoint used by the original App.tsx (`hidden xs:flex`) */
+@media (min-width: 400px) {
+  .xs\:flex { display: flex; }
+  .xs\:hidden { display: none; }
+  .xs\:block { display: block; }
+}
+
+/* Hide scrollbars for horizontal category tab strip */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* Safe-area padding helpers for iPhone home indicator & notch */
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+.pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
+.pl-safe { padding-left: max(env(safe-area-inset-left), 0px); }
+.pr-safe { padding-right: max(env(safe-area-inset-right), 0px); }
+
+/* Native date/time/select controls overflow a 2–3 column grid on phones */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit {
+  min-width: 0;
+  padding: 0;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  width: 1rem;
+  height: 1rem;
+  margin: 0 0 0 0.25rem;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Keep the native mobile picker while rendering it inside a width-safe shell. */
+.native-picker-input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.native-picker-input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
