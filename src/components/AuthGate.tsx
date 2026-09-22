@@ -39,7 +39,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <div className="min-h-screen grid place-items-center bg-slate-950 px-6 text-white">
         <div className="max-w-sm rounded-3xl border border-amber-400/30 bg-white/10 p-6 text-center shadow-2xl backdrop-blur-xl">
           <h1 className="text-lg font-black">尚未连接云端</h1>
-          <p className="mt-2 text-sm text-white/65">请配置 VITE_SUPABASE_URL 与 VITE_SUPABASE_ANON_KEY 后重新部署。</p>
+          <p className="mt-2 text-sm text-white/65">请配置 VITE_SUPABASE_URL 与 VITE_SUPABASE_PUBLISHABLE_KEY 后重新部署。</p>
         </div>
       </div>
     );

@@ -67,7 +67,7 @@ npm run build    # 产物输出到 dist/
 npm run preview  # 本地预览构建产物
 ```
 
-需配置 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`。数据库结构见 `supabase/migrations/`。
+需配置 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_PUBLISHABLE_KEY`（也兼容旧名 `VITE_SUPABASE_ANON_KEY`）。数据库结构见 `supabase/migrations/`。
 
 ---
 
