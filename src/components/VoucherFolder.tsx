@@ -172,6 +172,14 @@ const DEFAULT_FLIGHTS: FlightTicket[] = [
   { id: 'flight-ca101', flightNo: 'CA101', airline: 'Air China', depAirport: 'PEK 北京', arrAirport: 'HKG 香港', depDate: '2026-10-07', depTime: '12:25', arrTime: '16:40', seatNo: '待分配', classType: '经济舱', status: 'Scheduled' },
 ];
 
+const getLocalDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolderProps) {
   const [activeSubTab, setActiveSubTab] = useState<'hotel' | 'flight' | 'ticket'>('hotel');
   
@@ -508,7 +516,7 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
       fileType: selectedFile.type,
       fileSize: formatBytes(selectedFile.size),
       filePath,
-      uploadDate: new Date().toISOString().split('T')[0],
+      uploadDate: getLocalDate(),
       useDate: useDate || undefined,
       useTime: useTime || undefined,
       status: 'Ready'
