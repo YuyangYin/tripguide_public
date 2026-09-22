@@ -19,17 +19,6 @@
 
 ---
 
-## 📓 产品界面
-
-- <img width="885" height="807" alt="4424eb240d12e2a6847e7f13f4703a95" src="https://github.com/user-attachments/assets/cb8881bb-f7ba-47d9-9536-a8acb64f01db" />
-- <img width="885" height="807" alt="e1ce677c03c3f7347f344ca249c69db3" src="https://github.com/user-attachments/assets/3684ce11-45b8-4026-bf53-5af8d5472275" />
-- <img width="1387" height="807" alt="1103c35a09262567eba2089e9eedaf3e" src="https://github.com/user-attachments/assets/7405b4d1-8878-499e-abaa-43fcd9dabab3" />
-<img width="1654" height="807" alt="649234634880ba976eefcfe02a900670" src="https://github.com/user-attachments/assets/818ec193-32e4-4366-ab40-82c16503ab04" />
-<img width="1511" height="807" alt="6ba1ff75b7d7d3a9f74d2d904e0da798" src="https://github.com/user-attachments/assets/6502ff16-4665-43dc-8ca8-b163365ae9b7" />
-
-
----
-
 ## 🔒 隐私与开源说明
 
 - 本项目**不连接任何远端数据库**，如需多人共享共享数据，可以增加 Supabase 依赖与实时同步逻辑。
