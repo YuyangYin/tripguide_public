@@ -54,6 +54,7 @@ const parseAmount = (value: unknown) => {
 
 const parseCurrency = (value: unknown): SupportedCurrency => {
   const text = String(value ?? '').trim().toUpperCase();
+  if (text.includes('HKD') || text.includes('港币') || text.includes('港元') || text.includes('香港')) return 'HKD';
   if (text.includes('CHF') || text.includes('瑞士')) return 'CHF';
   if (text.includes('SEK') || text.includes('瑞典')) return 'SEK';
   if (text.includes('NOK') || text.includes('挪威')) return 'NOK';

@@ -1,6 +1,6 @@
 import { TRAVEL_MEMBER_IDS, TravelMemberId } from './travelMembers';
 
-export type SupportedCurrency = 'CNY' | 'NOK' | 'EUR' | 'CHF' | 'SEK';
+export type SupportedCurrency = 'CNY' | 'HKD' | 'NOK' | 'EUR' | 'CHF' | 'SEK';
 export type ExpenseCurrency = SupportedCurrency | 'ISK';
 
 export interface SharedExpense {
@@ -28,6 +28,12 @@ export interface SettlementTransfer {
   from: TravelMemberId;
   to: TravelMemberId;
   amount: number;
+}
+
+export interface SettlementPayment extends SettlementTransfer {
+  id: string;
+  date: string;
+  createdAt?: string;
 }
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -94,4 +100,20 @@ export function calculateSettlementTransfers(balances: MemberBalance[]): Settlem
     if (creditor.remaining <= 0.009) creditorIndex += 1;
   }
   return transfers;
+}
+
+export function applySettlementPayments(
+  balances: MemberBalance[],
+  payments: SettlementPayment[],
+): MemberBalance[] {
+  const adjusted = new Map(balances.map((balance) => [balance.memberId, { ...balance }]));
+  payments.forEach((payment) => {
+    const from = adjusted.get(payment.from);
+    const to = adjusted.get(payment.to);
+    const amount = roundMoney(Math.abs(Number(payment.amount) || 0));
+    if (!from || !to || from.memberId === to.memberId || amount <= 0) return;
+    from.balance = roundMoney(from.balance + amount);
+    to.balance = roundMoney(to.balance - amount);
+  });
+  return TRAVEL_MEMBER_IDS.map((memberId) => adjusted.get(memberId)!);
 }

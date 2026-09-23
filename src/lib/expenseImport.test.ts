@@ -32,4 +32,9 @@ describe('expense import', () => {
     assert.equal(result.rows.length, 1);
     assert.equal(result.rows[0].amount, 1885);
   });
+
+  it('recognizes Hong Kong dollars', () => {
+    const result = parseExpenseRows([{ 项目: '机场快线', 金额: 120, 币种: '港币' }], 'yyy');
+    assert.equal(result.rows[0].currency, 'HKD');
+  });
 });

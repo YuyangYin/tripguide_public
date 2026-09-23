@@ -1,13 +1,14 @@
-import { FormEvent, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowRight, Check, CircleDollarSign, FileSpreadsheet, Pencil, Plus, Receipt, Trash2, Upload, X } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { getCardStyle, getInputStyle, getPrimaryButtonStyle } from '../lib/themeStyles';
 import { useSharedTable, useSharedValue } from '../lib/useSharedTable';
-import { calculateMemberBalances, calculateSettlementTransfers, normalizeExpense, SharedExpense, SupportedCurrency } from '../lib/expenseSettlement';
+import { applySettlementPayments, calculateMemberBalances, calculateSettlementTransfers, normalizeExpense, SharedExpense, SupportedCurrency, type SettlementPayment } from '../lib/expenseSettlement';
 import { parseExpenseFile, ExpenseImportResult } from '../lib/expenseImport';
 import { TRAVEL_MEMBERS, TRAVEL_MEMBER_IDS, TravelMemberId } from '../lib/travelMembers';
 import { useCurrentTravelMember } from './TravelMemberContext';
+import { filterExpenses, groupExpensesByDate, type ExpenseSettlementFilter } from '../lib/expenseFilters';
 
 interface ExpenseTrackerProps { theme: ThemeConfig; }
 
@@ -22,9 +23,10 @@ const CATEGORIES = [
   { name: '🛠️ 其他', color: '#6B7280' },
 ];
 
-const DEFAULT_RATES: Record<SupportedCurrency, number> = { CNY: 1, NOK: 0.67, EUR: 7.8, CHF: 8.2, SEK: 0.7 };
+const DEFAULT_RATES: Record<SupportedCurrency, number> = { CNY: 1, HKD: 0.91, NOK: 0.67, EUR: 7.8, CHF: 8.2, SEK: 0.7 };
 const CURRENCY_LABELS: Record<SupportedCurrency | 'ISK', string> = {
   CNY: '人民币',
+  HKD: '港币',
   NOK: '挪威克朗',
   EUR: '欧元',
   CHF: '瑞士法郎',
@@ -58,6 +60,7 @@ function MemberSelector({ selected, onChange, single = false }: {
 export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
   const currentMember = useCurrentTravelMember();
   const [rawExpenses, setExpenses, loaded, expensesError] = useSharedTable<SharedExpense>('expenses', 'polar_expenses_v2', []);
+  const [settlementPayments, setSettlementPayments, , settlementPaymentsError] = useSharedTable<SettlementPayment>('settlement_payments', 'polar_settlement_payments_v1', []);
   const [rates, setRates, , ratesError] = useSharedValue('exchange_rates_v2', 'polar_rates_v2', DEFAULT_RATES);
   const expenses = useMemo(() => rawExpenses.filter((expense) => expense.id !== LEGACY_DIRECTORY_ID).map(normalizeExpense), [rawExpenses]);
   const [title, setTitle] = useState('');
@@ -68,16 +71,29 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
   const [payerId, setPayerId] = useState<TravelMemberId>(currentMember.id);
   const [splitMemberIds, setSplitMemberIds] = useState<TravelMemberId[]>(TRAVEL_MEMBER_IDS);
   const [settled, setSettled] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [settlementFilter, setSettlementFilter] = useState<ExpenseSettlementFilter>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<SharedExpense | null>(null);
   const [importResult, setImportResult] = useState<ExpenseImportResult | null>(null);
   const [importError, setImportError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const balances = useMemo(() => calculateMemberBalances(expenses, rates), [expenses, rates]);
+  const normalizedRates = useMemo(() => ({ ...DEFAULT_RATES, ...rates }), [rates]);
+  useEffect(() => {
+    if (!rates.HKD) setRates((current) => ({ ...DEFAULT_RATES, ...current, HKD: DEFAULT_RATES.HKD }));
+  }, [rates.HKD, setRates]);
+  const baseBalances = useMemo(() => calculateMemberBalances(expenses, normalizedRates), [expenses, normalizedRates]);
+  const balances = useMemo(() => applySettlementPayments(baseBalances, settlementPayments), [baseBalances, settlementPayments]);
   const transfers = useMemo(() => calculateSettlementTransfers(balances), [balances]);
   const unsettledExpenses = expenses.filter((expense) => !expense.settled);
-  const totalCNY = expenses.reduce((sum, expense) => sum + expense.amount * rates[expense.currency], 0);
+  const toCNY = (expense: SharedExpense) => expense.amount * (expense.currency === 'ISK' ? 0.051 : normalizedRates[expense.currency]);
+  const totalCNY = expenses.reduce((sum, expense) => sum + toCNY(expense), 0);
+  const expenseDates = useMemo(() => [...new Set(expenses.map((expense) => expense.date).filter(Boolean))].sort((a, b) => b.localeCompare(a)), [expenses]);
+  const filteredExpenses = useMemo(() => filterExpenses(expenses, { category: categoryFilter, date: dateFilter, settlement: settlementFilter }), [categoryFilter, dateFilter, expenses, settlementFilter]);
+  const filteredGroups = useMemo(() => groupExpensesByDate(filteredExpenses), [filteredExpenses]);
+  const filteredTotalCNY = filteredExpenses.reduce((sum, expense) => sum + toCNY(expense), 0);
 
   const resetForm = () => {
     setTitle(''); setAmount(''); setCurrency('CNY'); setCategory('🍔 餐饮'); setDate(getLocalDate()); setPayerId(currentMember.id);
@@ -119,9 +135,20 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
     setImportResult(null);
   };
 
+  const markTransferSettled = (from: TravelMemberId, to: TravelMemberId, amount: number) => {
+    setSettlementPayments((current) => [{
+      id: crypto.randomUUID(),
+      from,
+      to,
+      amount,
+      date: getLocalDate(),
+      createdAt: new Date().toISOString(),
+    }, ...current]);
+  };
+
   return (
     <div className={`relative space-y-4 p-4 ${getCardStyle(theme.id, 'primary')}`}>
-      {(expensesError || ratesError) && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-[10px] font-bold text-red-500">云端同步异常：{expensesError || ratesError}</p>}
+      {(expensesError || ratesError || settlementPaymentsError) && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-[10px] font-bold text-red-500">云端同步异常：{expensesError || ratesError || settlementPaymentsError}</p>}
 
       <section className={`p-4 ${getCardStyle(theme.id, 'subcard')}`}>
         <div className="flex items-start justify-between gap-3">
@@ -129,14 +156,14 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
           <div className="text-right"><p className="text-[10px] font-black uppercase opacity-60">计划预算</p><p className="mt-1 text-sm font-black">¥{TRIP_BUDGET.toLocaleString()}</p></div>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
-          {(['NOK', 'EUR', 'CHF', 'SEK'] as const).map((code) => (
-            <label key={code} className="flex items-center gap-1"><span className="w-14 shrink-0 font-black">1 {CURRENCY_LABELS[code]}</span><input aria-label={`${CURRENCY_LABELS[code]}兑人民币汇率`} type="number" step="0.001" min="0" value={rates[code]} onChange={(event) => setRates({ ...rates, [code]: Number(event.target.value) || DEFAULT_RATES[code] })} className={`min-w-0 flex-1 px-2 py-1 text-[10px] ${getInputStyle(theme.id)}`} /><span className="shrink-0 opacity-60">元</span></label>
+          {(['HKD', 'NOK', 'EUR', 'CHF', 'SEK'] as const).map((code) => (
+            <label key={code} className="flex items-center gap-1"><span className="w-14 shrink-0 font-black">1 {CURRENCY_LABELS[code]}</span><input aria-label={`${CURRENCY_LABELS[code]}兑人民币汇率`} type="number" step="0.001" min="0" value={normalizedRates[code]} onChange={(event) => setRates({ ...normalizedRates, [code]: Number(event.target.value) || DEFAULT_RATES[code] })} className={`min-w-0 flex-1 px-2 py-1 text-[10px] ${getInputStyle(theme.id)}`} /><span className="shrink-0 opacity-60">元</span></label>
           ))}
         </div>
       </section>
 
       <section className={`p-4 ${getCardStyle(theme.id, 'subcard')}`}>
-        <div className="mb-3 flex items-center justify-between"><h4 className="flex items-center gap-1.5 text-xs font-black"><CircleDollarSign className="h-4 w-4 text-emerald-500" />自动分账</h4><span className="text-[9px] opacity-55">仅统计未结算账单</span></div>
+        <div className="mb-3 flex items-center justify-between"><h4 className="flex items-center gap-1.5 text-xs font-black"><CircleDollarSign className="h-4 w-4 text-emerald-500" />按人自动分账</h4><span className="text-[9px] opacity-55">未结算账单 - 已完成转账</span></div>
         <div className="grid grid-cols-2 gap-2">
           {balances.map((balance) => (
             <div key={balance.memberId} className="rounded-xl border border-stone-200/30 bg-white/5 p-2 text-[10px]">
@@ -147,9 +174,10 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
         </div>
         <div className="mt-3 space-y-1.5">
           {transfers.length === 0 ? <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-center text-[10px] font-bold text-emerald-500">当前无需转账</p> : transfers.map((transfer, index) => (
-            <div key={`${transfer.from}-${transfer.to}-${index}`} className="flex items-center justify-center gap-2 rounded-lg bg-sky-500/10 px-3 py-2 text-[11px] font-black"><span>{transfer.from}</span><ArrowRight className="h-3.5 w-3.5" /><span>{transfer.to}</span><span className="ml-auto">¥{transfer.amount.toFixed(2)}</span></div>
+            <div key={`${transfer.from}-${transfer.to}-${index}`} className="flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-2 text-[11px] font-black"><span>{transfer.from}</span><ArrowRight className="h-3.5 w-3.5" /><span>{transfer.to}</span><span className="ml-auto">¥{transfer.amount.toFixed(2)}</span><button type="button" onClick={() => markTransferSettled(transfer.from, transfer.to, transfer.amount)} className="flex items-center gap-1 rounded-lg bg-emerald-500 px-2 py-1 text-[9px] font-black text-white"><Check className="h-3 w-3" />已转账</button></div>
           ))}
         </div>
+        {settlementPayments.length > 0 && <div className="mt-3 border-t border-stone-300/20 pt-3"><div className="mb-2 flex items-center justify-between"><p className="text-[10px] font-black">成员结算流水</p><span className="text-[9px] opacity-50">{settlementPayments.length} 笔已完成</span></div><div className="space-y-1.5">{[...settlementPayments].sort((a, b) => (b.createdAt || b.date).localeCompare(a.createdAt || a.date)).map((payment) => <div key={payment.id} className="flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-[10px]"><Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" /><span className="font-black">{payment.from}</span><ArrowRight className="h-3 w-3" /><span className="font-black">{payment.to}</span><span className="ml-auto font-black text-emerald-500">¥{payment.amount.toFixed(2)}</span><span className="opacity-45">{payment.date}</span><button type="button" onClick={() => setSettlementPayments((current) => current.filter((item) => item.id !== payment.id))} className="rounded px-1.5 py-1 text-[8px] font-bold text-rose-500 hover:bg-rose-500/10">撤销</button></div>)}</div></div>}
       </section>
 
       <section className={`p-4 ${getCardStyle(theme.id, 'subcard')}`}>
@@ -177,12 +205,21 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
 
       <section className="space-y-2">
         <div className="flex items-center justify-between"><h4 className="flex items-center gap-1 text-xs font-black"><Receipt className="h-4 w-4" />账单流水</h4><span className="text-[9px] opacity-50">{unsettledExpenses.length} 笔待结算</span></div>
-        {!loaded ? <p className="py-4 text-center text-[10px] opacity-50">正在加载…</p> : expenses.length === 0 ? <p className="py-4 text-center text-[10px] opacity-50">暂无账单</p> : expenses.map((expense) => (
+        <div className={`space-y-2 p-3 ${getCardStyle(theme.id, 'subcard')}`}>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <label className="text-[9px] font-black opacity-65">支出分类<select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className={`mt-1 w-full px-2 py-2 text-[10px] ${getInputStyle(theme.id)}`}><option value="all">全部分类</option>{CATEGORIES.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label>
+            <label className="text-[9px] font-black opacity-65">记录日期<select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className={`mt-1 w-full px-2 py-2 text-[10px] ${getInputStyle(theme.id)}`}><option value="all">全部日期</option>{expenseDates.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label className="text-[9px] font-black opacity-65">结算状态<select value={settlementFilter} onChange={(event) => setSettlementFilter(event.target.value as ExpenseSettlementFilter)} className={`mt-1 w-full px-2 py-2 text-[10px] ${getInputStyle(theme.id)}`}><option value="all">全部状态</option><option value="unsettled">待结算</option><option value="settled">已结算</option></select></label>
+          </div>
+          <div className="flex items-center justify-between rounded-lg bg-sky-500/10 px-3 py-2 text-[10px]"><span className="font-bold">筛选结果：{filteredExpenses.length} 笔</span><span className="font-black text-sky-500">折合 ¥{filteredTotalCNY.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+          {(categoryFilter !== 'all' || dateFilter !== 'all' || settlementFilter !== 'all') && <button type="button" onClick={() => { setCategoryFilter('all'); setDateFilter('all'); setSettlementFilter('all'); }} className="w-full rounded-lg bg-white/5 py-1.5 text-[9px] font-bold text-sky-500">清除全部筛选</button>}
+        </div>
+        {!loaded ? <p className="py-4 text-center text-[10px] opacity-50">正在加载…</p> : expenses.length === 0 ? <p className="py-4 text-center text-[10px] opacity-50">暂无账单</p> : filteredExpenses.length === 0 ? <p className="py-4 text-center text-[10px] opacity-50">没有符合筛选条件的账单</p> : filteredGroups.map((group) => <div key={group.date} className="space-y-2"><div className="flex items-center gap-2 px-1"><span className="text-[10px] font-black">{group.date}</span><span className="h-px flex-1 bg-stone-300/30" /><span className="text-[9px] opacity-50">{group.expenses.length} 笔</span></div>{group.expenses.map((expense) => (
           <div key={expense.id} className={`p-3 ${getCardStyle(theme.id, 'subcard')}`}>
             <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1"><h5 className="font-black">{expense.title}</h5><span className={`rounded px-1.5 py-0.5 text-[8px] font-black ${expense.settled ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'}`}>{expense.settled ? '已结算' : '待结算'}</span></div><p className="mt-1 text-[9px] opacity-55">{expense.date} · {expense.category} · {expense.payerId} 支付 · 分账 {expense.splitMemberIds?.join('/')}</p></div><p className="font-black">{expense.amount.toLocaleString()} {CURRENCY_LABELS[expense.currency]}</p></div>
             <div className="mt-2 flex justify-end gap-1"><button onClick={() => setExpenses((current) => current.map((item) => item.id === expense.id ? { ...item, settled: !expense.settled } : item))} className="rounded-lg bg-emerald-500/10 px-2 py-1 text-[9px] font-bold text-emerald-500">{expense.settled ? '设为未结算' : '标记已结算'}</button><button onClick={() => editExpense(expense)} className="p-1.5 text-sky-500"><Pencil className="h-3.5 w-3.5" /></button><button onClick={() => setConfirmDelete(expense)} className="p-1.5 text-red-500"><Trash2 className="h-3.5 w-3.5" /></button></div>
           </div>
-        ))}
+        ))}</div>)}
       </section>
 
       <AnimatePresence>

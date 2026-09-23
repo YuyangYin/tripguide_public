@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { calculateMemberBalances, calculateSettlementTransfers, normalizeExpense, SupportedCurrency } from './expenseSettlement.ts';
+import { applySettlementPayments, calculateMemberBalances, calculateSettlementTransfers, normalizeExpense, SupportedCurrency } from './expenseSettlement.ts';
 
-const rates: Record<SupportedCurrency, number> = { CNY: 1, EUR: 7.8, NOK: 0.67, CHF: 8.2, SEK: 0.7 };
+const rates: Record<SupportedCurrency, number> = { CNY: 1, HKD: 0.91, EUR: 7.8, NOK: 0.67, CHF: 8.2, SEK: 0.7 };
 
 describe('expense settlement', () => {
   it('splits one payer expense across all four members', () => {
@@ -29,5 +29,14 @@ describe('expense settlement', () => {
     assert.deepEqual(normalized.splitMemberIds, ['wyw', 'yyy', 'yh', 'lqw']);
     assert.equal(normalized.settled, false);
   });
-});
 
+  it('removes completed person-to-person payments from outstanding transfers', () => {
+    const balances = calculateMemberBalances([{ id: '1', title: '酒店', amount: 400, currency: 'CNY', category: '住宿', date: '2026-09-23', payerId: 'wyw', splitMemberIds: ['wyw', 'yyy', 'yh', 'lqw'] }], rates);
+    const adjusted = applySettlementPayments(balances, [{ id: 'paid-1', from: 'yyy', to: 'wyw', amount: 100, date: '2026-09-23' }]);
+    assert.deepEqual(adjusted.map((item) => item.balance), [200, 0, -100, -100]);
+    assert.deepEqual(calculateSettlementTransfers(adjusted), [
+      { from: 'yh', to: 'wyw', amount: 100 },
+      { from: 'lqw', to: 'wyw', amount: 100 },
+    ]);
+  });
+});
