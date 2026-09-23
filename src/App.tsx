@@ -42,6 +42,7 @@ const COUNTRIES_OPTIONS = [
   { id: 'all', label: '全部大区', emoji: '🌍' },
   { id: 'spain', label: '西班牙', emoji: '🇪🇸' },
   { id: 'switzerland', label: '瑞士', emoji: '🇨🇭' },
+  { id: 'netherlands', label: '荷兰', emoji: '🇳🇱' },
   { id: 'norway', label: '挪威', emoji: '🇳🇴' },
   { id: 'sweden', label: '瑞典', emoji: '🇸🇪' }
 ] as const;
@@ -180,7 +181,7 @@ export default function App() {
             <div>
               <h1 className={`text-xl font-black tracking-tight ${theme.fontHeading}`}>
                 {activeTab === 'itinerary' && '欧洲五国行程'}
-                {activeTab === 'handbook' && '欧洲四国旅行手册'}
+                {activeTab === 'handbook' && '欧洲五国旅行手册'}
                 {activeTab === 'toolbox' && '欧洲旅行工具箱'}
                 {activeTab === 'folder' && '票根夹'}
               </h1>

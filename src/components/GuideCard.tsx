@@ -15,7 +15,7 @@ interface GuideCardProps {
 
 export default function GuideCard({ item, theme, onSelect }: GuideCardProps) {
   const countryLabel: Record<string, string> = {
-    spain: '🇪🇸 西班牙', switzerland: '🇨🇭 瑞士', norway: '🇳🇴 挪威', sweden: '🇸🇪 瑞典', iceland: '🇮🇸 冰岛', both: '🌐 通用',
+    spain: '🇪🇸 西班牙', switzerland: '🇨🇭 瑞士', netherlands: '🇳🇱 荷兰', norway: '🇳🇴 挪威', sweden: '🇸🇪 瑞典', iceland: '🇮🇸 冰岛', both: '🌐 通用',
   };
   // Dynamically map icon name to Lucide components
   const getIcon = (name: string) => {

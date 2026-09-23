@@ -1,6 +1,6 @@
 export type ThemeId = 'cozy' | 'aurora' | 'cyber' | 'glacial' | 'glassy' | 'ivory' | 'copenhagen' | 'newspaper' | 'frosted' | 'midnight';
 
-export type CountryId = 'spain' | 'switzerland' | 'norway' | 'sweden';
+export type CountryId = 'spain' | 'switzerland' | 'netherlands' | 'norway' | 'sweden';
 export type GuideCountryId = CountryId | 'iceland' | 'both';
 
 export type CategoryId = 'emergency' | 'parking' | 'traffic' | 'grocery' | 'activity' | 'experience' | 'food' | 'aurora' | 'photo' | 'drone' | 'history';
