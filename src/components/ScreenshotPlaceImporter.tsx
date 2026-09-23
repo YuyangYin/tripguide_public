@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Check, ImageUp, Loader2, Sparkles, X } from 'lucide-react';
 import { extractDocumentText } from '../lib/extractDocumentText';
 import { parseTravelScreenshotText, TravelScreenshotResult } from '../lib/parseTravelScreenshot';
+import { splitMultilineDraft } from '../lib/multilineInput';
 
 type ResultKey = 'sights' | 'alternativeSights' | 'dining' | 'shopping';
 export type ScreenshotImportMode = 'append' | 'replace';
@@ -32,14 +33,14 @@ export default function ScreenshotPlaceImporter({ cityHint, onApply }: {
     }
   };
 
-  const update = (key: ResultKey, value: string) => setResult((current) => current ? { ...current, [key]: value.split('\n').map((item) => item.trim()).filter(Boolean) } : current);
+  const update = (key: ResultKey, value: string) => setResult((current) => current ? { ...current, [key]: splitMultilineDraft(value) } : current);
 
   return <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-3">
     <div className="flex items-start justify-between gap-2"><div><h4 className="flex items-center gap-1.5 text-xs font-black text-cyan-300"><Sparkles className="h-4 w-4" />截图智能录入</h4><p className="mt-1 text-[9px] leading-relaxed text-white/50">上传小红书/攻略截图，本地 OCR 自动提取并分类。图片不会上传。</p></div><button type="button" onClick={() => inputRef.current?.click()} className="flex shrink-0 items-center gap-1 rounded-lg bg-cyan-300 px-2.5 py-1.5 text-[10px] font-black text-slate-950"><ImageUp className="h-3.5 w-3.5" />选择截图</button></div>
     <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(event) => event.target.files?.[0] && parseFile(event.target.files[0])} />
     {status && <p className="mt-2 flex items-center gap-1 text-[9px] text-cyan-200">{status.includes('识别完成') ? <Check className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}{status}</p>}
     {error && <p className="mt-2 rounded-lg bg-red-500/10 px-2 py-1.5 text-[9px] text-red-300">{error}</p>}
-    {result && <div className="mt-3 space-y-2">{(Object.keys(LABELS) as ResultKey[]).map((key) => <label key={key} className="block text-[9px] font-bold text-white/60">{LABELS[key]} · {result[key].length} 项<textarea rows={Math.max(2, Math.min(4, result[key].length + 1))} value={result[key].join('\n')} onChange={(event) => update(key, event.target.value)} placeholder={`没有识别到${LABELS[key]}，可手动补充`} className="mt-1 w-full rounded-lg border border-white/10 bg-black/25 px-2 py-1.5 text-[10px] text-white" /></label>)}
+    {result && <div className="mt-3 space-y-2">{(Object.keys(LABELS) as ResultKey[]).map((key) => <label key={key} className="block text-[9px] font-bold text-white/60">{LABELS[key]} · {result[key].filter((item) => item.trim()).length} 项<textarea enterKeyHint="enter" rows={Math.max(2, Math.min(4, result[key].length + 1))} value={result[key].join('\n')} onChange={(event) => update(key, event.target.value)} placeholder={`没有识别到${LABELS[key]}，可手动补充`} className="mt-1 w-full rounded-lg border border-white/10 bg-black/25 px-2 py-1.5 text-[10px] text-white" /></label>)}
       <div className="rounded-xl border border-white/10 bg-black/20 p-2">
         <p className="mb-1.5 text-[9px] font-bold text-white/55">导入方式</p>
         <div className="grid grid-cols-2 gap-1.5">

@@ -34,6 +34,7 @@ import XiaohongshuSearchPanel from './XiaohongshuSearchPanel';
 import type { TravelScreenshotResult } from '../lib/parseTravelScreenshot';
 import DayWeatherCard, { CompactDayWeather } from './DayWeatherCard';
 import { fetchTripWeatherSnapshot, INITIAL_TRIP_WEATHER_SNAPSHOT, localDateKey, type TripWeatherSnapshot } from '../lib/tripWeather';
+import { normalizeMultilineItems, splitMultilineDraft } from '../lib/multilineInput';
 
 interface ItineraryTimelineProps {
   theme: ThemeConfig;
@@ -354,7 +355,12 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
   const saveEditingDay = (event: React.FormEvent) => {
     event.preventDefault();
     if (!editingDay) return;
-    setDays((current) => current.map((day) => day.id === editingDay.id ? editingDay : day));
+    const sights = normalizeMultilineItems(editingDay.sights);
+    const alternativeSights = normalizeMultilineItems(editingDay.alternativeSights || []);
+    const dining = normalizeMultilineItems(editingDay.dining || [editingDay.breakfast]);
+    const shopping = normalizeMultilineItems(editingDay.shopping || []);
+    const normalizedDay = { ...editingDay, sights, alternativeSights, dining, shopping, breakfast: dining.join('；') };
+    setDays((current) => current.map((day) => day.id === normalizedDay.id ? normalizedDay : day));
     setEditingDay(null);
   };
 
@@ -716,13 +722,13 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
               ))}
               <label className="block text-[10px] font-bold text-white/65">
                 景点（每行一个）
-                <textarea rows={4} value={editingDay.sights.join('\n')}
-                  onChange={(event) => setEditingDay({ ...editingDay, sights: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })}
+                <textarea enterKeyHint="enter" rows={4} value={editingDay.sights.join('\n')}
+                  onChange={(event) => setEditingDay({ ...editingDay, sights: splitMultilineDraft(event.target.value) })}
                   className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white outline-none focus:border-sky-400" />
               </label>
-              <label className="block text-[10px] font-bold text-white/65">备选景点（每行一个）<textarea rows={4} value={(editingDay.alternativeSights || []).join('\n')} onChange={(event) => setEditingDay({ ...editingDay, alternativeSights: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })} className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white" /></label>
-              <label className="block text-[10px] font-bold text-white/65">餐饮安排（每行一家，可跳转地图）<textarea rows={3} value={(editingDay.dining || [editingDay.breakfast]).join('\n')} onChange={(event) => setEditingDay({ ...editingDay, dining: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean), breakfast: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean).join('；') })} className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white" /></label>
-              <label className="block text-[10px] font-bold text-white/65">购物推荐（每行一个，可跳转地图）<textarea rows={3} value={(editingDay.shopping || []).join('\n')} onChange={(event) => setEditingDay({ ...editingDay, shopping: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })} className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white" /></label>
+              <label className="block text-[10px] font-bold text-white/65">备选景点（每行一个）<textarea enterKeyHint="enter" rows={4} value={(editingDay.alternativeSights || []).join('\n')} onChange={(event) => setEditingDay({ ...editingDay, alternativeSights: splitMultilineDraft(event.target.value) })} className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white" /></label>
+              <label className="block text-[10px] font-bold text-white/65">餐饮安排（每行一家，可跳转地图）<textarea enterKeyHint="enter" rows={3} value={(editingDay.dining || [editingDay.breakfast]).join('\n')} onChange={(event) => { const dining = splitMultilineDraft(event.target.value); setEditingDay({ ...editingDay, dining, breakfast: normalizeMultilineItems(dining).join('；') }); }} className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white" /></label>
+              <label className="block text-[10px] font-bold text-white/65">购物推荐（每行一个，可跳转地图）<textarea enterKeyHint="enter" rows={3} value={(editingDay.shopping || []).join('\n')} onChange={(event) => setEditingDay({ ...editingDay, shopping: splitMultilineDraft(event.target.value) })} className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white" /></label>
               <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-400 py-2.5 text-xs font-black text-slate-950"><Save className="h-4 w-4" />保存并同步</button>
             </motion.form>
           </motion.div>
