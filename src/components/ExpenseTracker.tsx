@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowRight, Check, ChevronDown, CircleDollarSign, FileSpreadsheet, Pencil, Plus, Receipt, Trash2, Upload, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, CircleDollarSign, Download, FileSpreadsheet, Pencil, Plus, Receipt, Trash2, Upload, X } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { getCardStyle, getInputStyle, getPrimaryButtonStyle } from '../lib/themeStyles';
 import { useSharedTable, useSharedValue } from '../lib/useSharedTable';
@@ -10,6 +10,7 @@ import { TRAVEL_MEMBERS, TRAVEL_MEMBER_IDS, TravelMemberId } from '../lib/travel
 import { useCurrentTravelMember } from './TravelMemberContext';
 import { filterExpenses, groupExpensesByDate, type ExpenseSettlementFilter } from '../lib/expenseFilters';
 import { calculateExpenseStatistics } from '../lib/expenseStats';
+import { downloadExpenseWorkbook } from '../lib/expenseExport';
 
 interface ExpenseTrackerProps { theme: ThemeConfig; }
 
@@ -79,6 +80,7 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
   const [dateFilter, setDateFilter] = useState('all');
   const [settlementFilter, setSettlementFilter] = useState<ExpenseSettlementFilter>('all');
   const [expandedMemberStat, setExpandedMemberStat] = useState<TravelMemberId | null>(currentMember.id);
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<SharedExpense | null>(null);
   const [importResult, setImportResult] = useState<ExpenseImportResult | null>(null);
@@ -106,6 +108,9 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
     setSplitMemberIds(TRAVEL_MEMBER_IDS); setSettlementMode('unsettled'); setSettledMemberIds([]); setEditingId(null);
   };
 
+  const openNewExpense = () => { resetForm(); setExpenseModalOpen(true); };
+  const closeExpenseModal = () => { setExpenseModalOpen(false); resetForm(); };
+
   const repayableMemberIds = splitMemberIds.filter((id) => id !== payerId);
   useEffect(() => {
     setSettledMemberIds((current) => current.filter((id) => repayableMemberIds.includes(id)));
@@ -118,7 +123,7 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
     const completedMembers = settlementMode === 'all' ? repayableMemberIds : settlementMode === 'partial' ? settledMemberIds.filter((id) => repayableMemberIds.includes(id)) : [];
     const row: SharedExpense = { id: editingId || crypto.randomUUID(), title: title.trim(), amount: numericAmount, currency, category, date, payerId, splitMemberIds, settledMemberIds: completedMembers, settled: settlementMode === 'all' };
     setExpenses((current) => editingId ? current.map((expense) => expense.id === editingId ? row : expense) : [row, ...current]);
-    resetForm();
+    closeExpenseModal();
   };
 
   const editExpense = (expense: SharedExpense) => {
@@ -132,6 +137,7 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
       setCurrency(item.currency);
     }
     setCategory(item.category); setDate(item.date); setPayerId(item.payerId!); setSplitMemberIds(item.splitMemberIds!); setSettledMemberIds(item.settledMemberIds || []); setSettlementMode(item.settled ? 'all' : (item.settledMemberIds || []).length > 0 ? 'partial' : 'unsettled');
+    setExpenseModalOpen(true);
   };
 
   const handleImport = async (file: File) => {
@@ -206,30 +212,14 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
       </section>
 
       <section className={`p-4 ${getCardStyle(theme.id, 'subcard')}`}>
-        <div className="mb-3 flex items-center justify-between"><h4 className="flex items-center gap-1.5 text-xs font-black"><FileSpreadsheet className="h-4 w-4" />一键导入账单</h4><button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 rounded-lg bg-sky-500 px-3 py-1.5 text-[10px] font-black text-white"><Upload className="h-3 w-3" />选择文件</button></div>
+        <div className="mb-3 flex items-center justify-between gap-2"><h4 className="flex items-center gap-1.5 text-xs font-black"><FileSpreadsheet className="h-4 w-4" />账单操作</h4><div className="flex gap-1.5"><button type="button" onClick={() => downloadExpenseWorkbook(expenses, settlementPayments, normalizedRates, getLocalDate())} className="flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-[9px] font-black text-white"><Download className="h-3 w-3" />导出 Excel</button><button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 rounded-lg bg-sky-500 px-2.5 py-1.5 text-[9px] font-black text-white"><Upload className="h-3 w-3" />导入</button></div></div>
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(event) => event.target.files?.[0] && handleImport(event.target.files[0])} />
         <p className="text-[9px] leading-relaxed opacity-55">识别名称、金额、币种、分类、日期、支出人、分账人和结算状态。没有分账人时默认四人。</p>
         {importError && <p className="mt-2 rounded-lg bg-red-500/10 px-3 py-2 text-[10px] text-red-500">{importError}</p>}
       </section>
 
-      <form onSubmit={saveExpense} className={`space-y-3 p-4 ${getCardStyle(theme.id, 'subcard')}`}>
-        <div className="flex items-center justify-between"><h4 className="text-xs font-black">{editingId ? '编辑账单' : '记一笔账'}</h4>{editingId && <button type="button" onClick={resetForm} className="p-1"><X className="h-4 w-4" /></button>}</div>
-        <input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="支出名称" className={`w-full px-3 py-2 text-xs ${getInputStyle(theme.id)}`} />
-        <div className="grid grid-cols-2 gap-2"><input required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ''))} placeholder="金额" className={`px-3 py-2 text-xs ${getInputStyle(theme.id)}`} /><select value={currency} onChange={(event) => setCurrency(event.target.value as SupportedCurrency)} className={`px-3 py-2 text-xs ${getInputStyle(theme.id)}`}>{(Object.keys(DEFAULT_RATES) as SupportedCurrency[]).map((code) => <option key={code} value={code}>{CURRENCY_LABELS[code]}</option>)}</select></div>
-        <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={`w-full px-3 py-2 text-xs ${getInputStyle(theme.id)}`} />
-        <select value={category} onChange={(event) => setCategory(event.target.value)} className={`w-full px-3 py-2 text-xs ${getInputStyle(theme.id)}`}>{CATEGORIES.map((item) => <option key={item.name}>{item.name}</option>)}</select>
-        <div><p className="mb-1 text-[9px] font-black opacity-60">支出人</p><MemberSelector selected={[payerId]} onChange={(members) => setPayerId(members[0])} single /></div>
-        <div>
-          <div className="mb-1 flex items-center justify-between"><p className="text-[9px] font-black opacity-60">分账人</p><button type="button" onClick={() => setSplitMemberIds([currentMember.id])} className="text-[9px] font-bold text-sky-500">个人（仅自己）</button></div>
-          <MemberSelector selected={splitMemberIds} onChange={setSplitMemberIds} />
-          {splitMemberIds.length === 0 && <p className="mt-1 text-[9px] text-red-500">至少选择一名分账人</p>}
-        </div>
-        <div className="space-y-2"><p className="text-[9px] font-black opacity-60">账单结算方式</p><div className="grid grid-cols-3 gap-1.5">{([['unsettled', '未结算'], ['partial', '部分人结算'], ['all', '全部已结算']] as const).map(([mode, label]) => <button key={mode} type="button" onClick={() => { setSettlementMode(mode); if (mode === 'unsettled') setSettledMemberIds([]); }} className={`rounded-lg border px-1 py-2 text-[9px] font-black ${settlementMode === mode ? 'border-emerald-400 bg-emerald-500/15 text-emerald-500' : 'border-stone-200/30 bg-white/5 opacity-55'}`}>{label}</button>)}</div>{settlementMode === 'partial' && <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 p-2"><p className="mb-1.5 text-[9px] font-bold opacity-65">勾选已经向支出人完成结算的分账人</p><MemberSelector selected={settledMemberIds} onChange={setSettledMemberIds} allowed={repayableMemberIds} />{settledMemberIds.length === 0 && <p className="mt-1 text-[9px] text-amber-500">请选择至少一名已结算成员</p>}</div>}</div>
-        <button disabled={splitMemberIds.length === 0 || (settlementMode === 'partial' && settledMemberIds.length === 0)} className={`flex w-full items-center justify-center gap-1 py-2 text-xs ${getPrimaryButtonStyle(theme.id)}`}><Plus className="h-4 w-4" />{editingId ? '保存修改' : '保存账单'}</button>
-      </form>
-
       <section className="space-y-2">
-        <div className="flex items-center justify-between"><h4 className="flex items-center gap-1 text-xs font-black"><Receipt className="h-4 w-4" />账单流水</h4><span className="text-[9px] opacity-50">{unsettledExpenses.length} 笔待结算</span></div>
+        <div className="flex items-center justify-between gap-2"><div><h4 className="flex items-center gap-1 text-xs font-black"><Receipt className="h-4 w-4" />账单流水</h4><span className="text-[9px] opacity-50">{unsettledExpenses.length} 笔待结算</span></div><button type="button" onClick={openNewExpense} className="flex items-center gap-1 rounded-lg bg-sky-500 px-3 py-2 text-[10px] font-black text-white"><Plus className="h-3.5 w-3.5" />记一笔账</button></div>
         <div className={`space-y-2 p-3 ${getCardStyle(theme.id, 'subcard')}`}>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <label className="text-[9px] font-black opacity-65">支出分类<select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className={`mt-1 w-full px-2 py-2 text-[10px] ${getInputStyle(theme.id)}`}><option value="all">全部分类</option>{CATEGORIES.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label>
@@ -252,6 +242,7 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
       </section>
 
       <AnimatePresence>
+        {expenseModalOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[220] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onClick={closeExpenseModal}><motion.form initial={{ y: 18, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 18, scale: 0.97 }} onSubmit={saveExpense} onClick={(event) => event.stopPropagation()} className="max-h-[90dvh] w-full max-w-md space-y-3 overflow-y-auto rounded-2xl border border-white/15 bg-stone-950 p-4 text-white shadow-2xl"><div className="flex items-center justify-between"><h4 className="text-sm font-black">{editingId ? '编辑账单' : '记一笔账'}</h4><button type="button" onClick={closeExpenseModal} className="rounded-full p-1.5 hover:bg-white/10"><X className="h-4 w-4" /></button></div><input autoFocus required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="支出名称" className={`w-full px-3 py-2 text-xs ${getInputStyle(theme.id)}`} /><div className="grid grid-cols-2 gap-2"><input required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ''))} placeholder="金额" className={`px-3 py-2 text-xs ${getInputStyle(theme.id)}`} /><select value={currency} onChange={(event) => setCurrency(event.target.value as SupportedCurrency)} className={`px-3 py-2 text-xs ${getInputStyle(theme.id)}`}>{(Object.keys(DEFAULT_RATES) as SupportedCurrency[]).map((code) => <option key={code} value={code}>{CURRENCY_LABELS[code]}</option>)}</select></div><input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={`w-full px-3 py-2 text-xs ${getInputStyle(theme.id)}`} /><select value={category} onChange={(event) => setCategory(event.target.value)} className={`w-full px-3 py-2 text-xs ${getInputStyle(theme.id)}`}>{CATEGORIES.map((item) => <option key={item.name}>{item.name}</option>)}</select><div><p className="mb-1 text-[9px] font-black opacity-60">支出人</p><MemberSelector selected={[payerId]} onChange={(members) => setPayerId(members[0])} single /></div><div><div className="mb-1 flex items-center justify-between"><p className="text-[9px] font-black opacity-60">分账人</p><button type="button" onClick={() => setSplitMemberIds([currentMember.id])} className="text-[9px] font-bold text-sky-400">个人（仅自己）</button></div><MemberSelector selected={splitMemberIds} onChange={setSplitMemberIds} />{splitMemberIds.length === 0 && <p className="mt-1 text-[9px] text-red-400">至少选择一名分账人</p>}</div><div className="space-y-2"><p className="text-[9px] font-black opacity-60">账单结算方式</p><div className="grid grid-cols-3 gap-1.5">{([['unsettled', '未结算'], ['partial', '部分人结算'], ['all', '全部已结算']] as const).map(([mode, label]) => <button key={mode} type="button" onClick={() => { setSettlementMode(mode); if (mode === 'unsettled') setSettledMemberIds([]); }} className={`rounded-lg border px-1 py-2 text-[9px] font-black ${settlementMode === mode ? 'border-emerald-400 bg-emerald-500/15 text-emerald-400' : 'border-white/15 bg-white/5 text-white/55'}`}>{label}</button>)}</div>{settlementMode === 'partial' && <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 p-2"><p className="mb-1.5 text-[9px] font-bold text-white/65">勾选已经向支出人完成结算的分账人</p><MemberSelector selected={settledMemberIds} onChange={setSettledMemberIds} allowed={repayableMemberIds} />{settledMemberIds.length === 0 && <p className="mt-1 text-[9px] text-amber-400">请选择至少一名已结算成员</p>}</div>}</div><div className="grid grid-cols-2 gap-2"><button type="button" onClick={closeExpenseModal} className="rounded-xl bg-white/10 py-2.5 text-xs font-bold">取消</button><button disabled={splitMemberIds.length === 0 || (settlementMode === 'partial' && settledMemberIds.length === 0)} className="flex items-center justify-center gap-1 rounded-xl bg-sky-400 py-2.5 text-xs font-black text-slate-950 disabled:opacity-40"><Check className="h-4 w-4" />{editingId ? '保存修改' : '保存账单'}</button></div></motion.form></motion.div>}
         {importResult && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="max-h-[85%] w-full max-w-md overflow-y-auto rounded-2xl bg-stone-950 p-4 text-white"><div className="flex justify-between"><h4 className="font-black">导入预览 · {importResult.sheetName}</h4><button onClick={() => setImportResult(null)}><X className="h-4 w-4" /></button></div><p className="mt-1 text-[10px] opacity-60">识别 {importResult.rows.length} 笔账单</p><div className="mt-3 space-y-1.5">{importResult.rows.slice(0, 30).map((row) => <div key={row.id} className="rounded-lg bg-white/10 p-2 text-[10px]"><b>{row.title}</b><span className="float-right">{row.amount} {CURRENCY_LABELS[row.currency]}</span><p className="mt-1 opacity-60">{row.payerId} 支付 · {row.splitMemberIds?.join('/')} · {row.settled ? '已结算' : '未结算'}</p></div>)}</div>{importResult.warnings.map((warning) => <p key={warning} className="mt-1 text-[9px] text-amber-300">{warning}</p>)}<button onClick={applyImport} className="mt-4 w-full rounded-xl bg-sky-400 py-2.5 text-xs font-black text-slate-950">确认导入 {importResult.rows.length} 笔</button></div>
         </motion.div>}
