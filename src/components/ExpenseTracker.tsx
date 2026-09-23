@@ -23,6 +23,14 @@ const CATEGORIES = [
 ];
 
 const DEFAULT_RATES: Record<SupportedCurrency, number> = { CNY: 1, NOK: 0.67, EUR: 7.8, CHF: 8.2, SEK: 0.7 };
+const CURRENCY_LABELS: Record<SupportedCurrency | 'ISK', string> = {
+  CNY: '人民币',
+  NOK: '挪威克朗',
+  EUR: '欧元',
+  CHF: '瑞士法郎',
+  SEK: '瑞典克朗',
+  ISK: '冰岛克朗',
+};
 const TRIP_BUDGET = 105849.96;
 const LEGACY_DIRECTORY_ID = '__payer_directory__';
 const getLocalDate = () => new Date().toLocaleDateString('en-CA');
@@ -122,7 +130,7 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
           {(['NOK', 'EUR', 'CHF', 'SEK'] as const).map((code) => (
-            <label key={code} className="flex items-center gap-1"><span className="w-8 font-black">{code}</span><input type="number" step="0.001" min="0" value={rates[code]} onChange={(event) => setRates({ ...rates, [code]: Number(event.target.value) || DEFAULT_RATES[code] })} className={`min-w-0 flex-1 px-2 py-1 text-[10px] ${getInputStyle(theme.id)}`} /></label>
+            <label key={code} className="flex items-center gap-1"><span className="w-14 shrink-0 font-black">1 {CURRENCY_LABELS[code]}</span><input aria-label={`${CURRENCY_LABELS[code]}兑人民币汇率`} type="number" step="0.001" min="0" value={rates[code]} onChange={(event) => setRates({ ...rates, [code]: Number(event.target.value) || DEFAULT_RATES[code] })} className={`min-w-0 flex-1 px-2 py-1 text-[10px] ${getInputStyle(theme.id)}`} /><span className="shrink-0 opacity-60">元</span></label>
           ))}
         </div>
       </section>
@@ -154,7 +162,7 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
       <form onSubmit={saveExpense} className={`space-y-3 p-4 ${getCardStyle(theme.id, 'subcard')}`}>
         <div className="flex items-center justify-between"><h4 className="text-xs font-black">{editingId ? '编辑账单' : '记一笔账'}</h4>{editingId && <button type="button" onClick={resetForm} className="p-1"><X className="h-4 w-4" /></button>}</div>
         <input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="支出名称" className={`w-full px-3 py-2 text-xs ${getInputStyle(theme.id)}`} />
-        <div className="grid grid-cols-2 gap-2"><input required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ''))} placeholder="金额" className={`px-3 py-2 text-xs ${getInputStyle(theme.id)}`} /><select value={currency} onChange={(event) => setCurrency(event.target.value as SupportedCurrency)} className={`px-3 py-2 text-xs ${getInputStyle(theme.id)}`}>{Object.keys(DEFAULT_RATES).map((code) => <option key={code}>{code}</option>)}</select></div>
+        <div className="grid grid-cols-2 gap-2"><input required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ''))} placeholder="金额" className={`px-3 py-2 text-xs ${getInputStyle(theme.id)}`} /><select value={currency} onChange={(event) => setCurrency(event.target.value as SupportedCurrency)} className={`px-3 py-2 text-xs ${getInputStyle(theme.id)}`}>{(Object.keys(DEFAULT_RATES) as SupportedCurrency[]).map((code) => <option key={code} value={code}>{CURRENCY_LABELS[code]}</option>)}</select></div>
         <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={`w-full px-3 py-2 text-xs ${getInputStyle(theme.id)}`} />
         <select value={category} onChange={(event) => setCategory(event.target.value)} className={`w-full px-3 py-2 text-xs ${getInputStyle(theme.id)}`}>{CATEGORIES.map((item) => <option key={item.name}>{item.name}</option>)}</select>
         <div><p className="mb-1 text-[9px] font-black opacity-60">支出人</p><MemberSelector selected={[payerId]} onChange={(members) => setPayerId(members[0])} single /></div>
@@ -171,7 +179,7 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
         <div className="flex items-center justify-between"><h4 className="flex items-center gap-1 text-xs font-black"><Receipt className="h-4 w-4" />账单流水</h4><span className="text-[9px] opacity-50">{unsettledExpenses.length} 笔待结算</span></div>
         {!loaded ? <p className="py-4 text-center text-[10px] opacity-50">正在加载…</p> : expenses.length === 0 ? <p className="py-4 text-center text-[10px] opacity-50">暂无账单</p> : expenses.map((expense) => (
           <div key={expense.id} className={`p-3 ${getCardStyle(theme.id, 'subcard')}`}>
-            <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1"><h5 className="font-black">{expense.title}</h5><span className={`rounded px-1.5 py-0.5 text-[8px] font-black ${expense.settled ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'}`}>{expense.settled ? '已结算' : '待结算'}</span></div><p className="mt-1 text-[9px] opacity-55">{expense.date} · {expense.category} · {expense.payerId} 支付 · 分账 {expense.splitMemberIds?.join('/')}</p></div><p className="font-black">{expense.amount.toLocaleString()} {expense.currency}</p></div>
+            <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1"><h5 className="font-black">{expense.title}</h5><span className={`rounded px-1.5 py-0.5 text-[8px] font-black ${expense.settled ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'}`}>{expense.settled ? '已结算' : '待结算'}</span></div><p className="mt-1 text-[9px] opacity-55">{expense.date} · {expense.category} · {expense.payerId} 支付 · 分账 {expense.splitMemberIds?.join('/')}</p></div><p className="font-black">{expense.amount.toLocaleString()} {CURRENCY_LABELS[expense.currency]}</p></div>
             <div className="mt-2 flex justify-end gap-1"><button onClick={() => setExpenses((current) => current.map((item) => item.id === expense.id ? { ...item, settled: !expense.settled } : item))} className="rounded-lg bg-emerald-500/10 px-2 py-1 text-[9px] font-bold text-emerald-500">{expense.settled ? '设为未结算' : '标记已结算'}</button><button onClick={() => editExpense(expense)} className="p-1.5 text-sky-500"><Pencil className="h-3.5 w-3.5" /></button><button onClick={() => setConfirmDelete(expense)} className="p-1.5 text-red-500"><Trash2 className="h-3.5 w-3.5" /></button></div>
           </div>
         ))}
@@ -179,7 +187,7 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
 
       <AnimatePresence>
         {importResult && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="max-h-[85%] w-full max-w-md overflow-y-auto rounded-2xl bg-stone-950 p-4 text-white"><div className="flex justify-between"><h4 className="font-black">导入预览 · {importResult.sheetName}</h4><button onClick={() => setImportResult(null)}><X className="h-4 w-4" /></button></div><p className="mt-1 text-[10px] opacity-60">识别 {importResult.rows.length} 笔账单</p><div className="mt-3 space-y-1.5">{importResult.rows.slice(0, 30).map((row) => <div key={row.id} className="rounded-lg bg-white/10 p-2 text-[10px]"><b>{row.title}</b><span className="float-right">{row.amount} {row.currency}</span><p className="mt-1 opacity-60">{row.payerId} 支付 · {row.splitMemberIds?.join('/')} · {row.settled ? '已结算' : '未结算'}</p></div>)}</div>{importResult.warnings.map((warning) => <p key={warning} className="mt-1 text-[9px] text-amber-300">{warning}</p>)}<button onClick={applyImport} className="mt-4 w-full rounded-xl bg-sky-400 py-2.5 text-xs font-black text-slate-950">确认导入 {importResult.rows.length} 笔</button></div>
+          <div className="max-h-[85%] w-full max-w-md overflow-y-auto rounded-2xl bg-stone-950 p-4 text-white"><div className="flex justify-between"><h4 className="font-black">导入预览 · {importResult.sheetName}</h4><button onClick={() => setImportResult(null)}><X className="h-4 w-4" /></button></div><p className="mt-1 text-[10px] opacity-60">识别 {importResult.rows.length} 笔账单</p><div className="mt-3 space-y-1.5">{importResult.rows.slice(0, 30).map((row) => <div key={row.id} className="rounded-lg bg-white/10 p-2 text-[10px]"><b>{row.title}</b><span className="float-right">{row.amount} {CURRENCY_LABELS[row.currency]}</span><p className="mt-1 opacity-60">{row.payerId} 支付 · {row.splitMemberIds?.join('/')} · {row.settled ? '已结算' : '未结算'}</p></div>)}</div>{importResult.warnings.map((warning) => <p key={warning} className="mt-1 text-[9px] text-amber-300">{warning}</p>)}<button onClick={applyImport} className="mt-4 w-full rounded-xl bg-sky-400 py-2.5 text-xs font-black text-slate-950">确认导入 {importResult.rows.length} 笔</button></div>
         </motion.div>}
         {confirmDelete && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 grid place-items-center bg-black/60 p-4"><div className="w-full max-w-sm rounded-2xl bg-stone-950 p-4 text-white"><h4 className="font-black">删除账单</h4><p className="mt-2 text-xs opacity-70">确认删除“{confirmDelete.title}”？</p><div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => setConfirmDelete(null)} className="rounded-lg bg-white/10 py-2 text-xs">取消</button><button onClick={() => { setExpenses((current) => current.filter((item) => item.id !== confirmDelete.id)); setConfirmDelete(null); }} className="rounded-lg bg-red-500 py-2 text-xs font-black">删除</button></div></div></motion.div>}
       </AnimatePresence>
