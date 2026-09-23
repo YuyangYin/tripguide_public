@@ -28,6 +28,8 @@ import { useSharedTable, useSharedValue } from '../lib/useSharedTable';
 import { enrichItineraryDay, ITINERARY_2026 } from '../data/itinerary2026';
 import { getTripSpot, TripSpot } from '../data/tripSpots';
 import TripSpotModal from './TripSpotModal';
+import ScreenshotPlaceImporter from './ScreenshotPlaceImporter';
+import type { TravelScreenshotResult } from '../lib/parseTravelScreenshot';
 
 interface ItineraryTimelineProps {
   theme: ThemeConfig;
@@ -58,6 +60,10 @@ export interface ItineraryDay {
 // 仅作为开源项目的演示数据；「今日 / 已完成」高亮依赖下方 ITINERARY_YEAR，按需调整。
 // 用户可在「票根夹 / 记账 / 行程」中替换为自己的真实安排。
 const ITINERARY_YEAR = 2026;
+
+const mergeUnique = (current: string[] | undefined, incoming: string[]) => [
+  ...new Set([...(current || []), ...incoming].map((item) => item.trim()).filter(Boolean)),
+];
 
 const ITINERARY_DATA: ItineraryDay[] = [
   {
@@ -324,6 +330,16 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
     if (!editingDay) return;
     setDays((current) => current.map((day) => day.id === editingDay.id ? editingDay : day));
     setEditingDay(null);
+  };
+
+  const applyScreenshotImport = (result: TravelScreenshotResult) => {
+    setEditingDay((current) => current ? {
+      ...current,
+      sights: mergeUnique(current.sights, result.sights),
+      alternativeSights: mergeUnique(current.alternativeSights, result.alternativeSights),
+      dining: mergeUnique(current.dining || [current.breakfast], result.dining),
+      shopping: mergeUnique(current.shopping, result.shopping),
+    } : current);
   };
 
   const promoteAlternative = (day: ItineraryDay, sight: string) => {
@@ -648,6 +664,7 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
                 <h3 className="text-sm font-black">编辑第 {editingDay.dayNum} 天</h3>
                 <button type="button" onClick={() => setEditingDay(null)} className="rounded-full p-1.5 hover:bg-white/10"><X className="h-4 w-4" /></button>
               </div>
+              <ScreenshotPlaceImporter cityHint={editingDay.route} onApply={applyScreenshotImport} />
               {([
                 ['date', '日期（MM/DD）'], ['route', '路线'], ['schedule', '日程安排'], ['transport', '交通方式'],
                 ['drivingEstimate', '车程估算'], ['hotel', '酒店'], ['breakfast', '餐饮安排（兼容旧字段）'], ['tips', '提示'], ['highlights', '亮点'],
