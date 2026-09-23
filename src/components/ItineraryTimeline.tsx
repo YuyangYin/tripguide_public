@@ -29,6 +29,7 @@ import { enrichItineraryDay, ITINERARY_2026 } from '../data/itinerary2026';
 import { getTripSpot, TripSpot } from '../data/tripSpots';
 import TripSpotModal from './TripSpotModal';
 import ScreenshotPlaceImporter from './ScreenshotPlaceImporter';
+import XiaohongshuSearchPanel from './XiaohongshuSearchPanel';
 import type { TravelScreenshotResult } from '../lib/parseTravelScreenshot';
 
 interface ItineraryTimelineProps {
@@ -491,6 +492,7 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
                       className="border-t border-stone-100 dark:border-stone-800/60"
                     >
                       <div className="p-4 pl-4 space-y-3.5 text-stone-700 dark:text-stone-300 select-text">
+                        <XiaohongshuSearchPanel route={day.route} regionLabel={day.regionLabel} />
                         {/* MAIN CONTENT GRID (Sights Sliced Out elegantly) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           
