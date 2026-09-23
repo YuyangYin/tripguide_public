@@ -25,7 +25,8 @@ import {
   Loader2,
   Copy,
   ExternalLink,
-  Phone
+  Phone,
+  Luggage
 } from 'lucide-react';
 import { getCardStyle, getDropzoneStyle, getInputStyle, getTabBarStyle, getTabItemStyle, getPrimaryButtonStyle, getSecondaryButtonStyle } from '../lib/themeStyles';
 import { extractDocumentText } from '../lib/extractDocumentText';
@@ -33,6 +34,7 @@ import { hasAnyFlightField, isCompleteFlightParse, parseFlightText, sortFlightsB
 import { expandHotelNights, hasAnyHotelField, isCompleteHotelParse, parseHotelText } from '../lib/parseHotelText';
 import { deleteVoucherFile, getVoucherUrl, uploadVoucherFile } from '../lib/voucherStorage';
 import BaggageAllowancePanel from './BaggageAllowancePanel';
+import { getBaggageRuleLines, getFlightAirlineRule } from '../lib/baggageAllowance';
 
 const getCityFromAddress = (address: string, hotelName: string) => {
   const cities = ['雷克雅未克', '罗弗敦', '维克', '赫拉', '奥斯陆', '特罗姆瑟', 'Hella', 'Vík', 'Reykjavík', 'Lofoten', 'Oslo', 'Tromsø', 'Svolvær', 'Henningsvær', 'Keflavík'];
@@ -1332,6 +1334,7 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
               {group.flights.map((flight) => {
                 const dep = splitAirport(flight.depAirport);
                 const arr = splitAirport(flight.arrAirport);
+                const baggageRule = getFlightAirlineRule(flight.airline, flight.flightNo);
                 return (
                   <div
                     key={flight.id}
@@ -1420,6 +1423,20 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
                         删除
                       </button>
                     </div>
+                    {baggageRule && (
+                      <div className="border-t border-dashed border-stone-300/50 bg-amber-400/5 px-4 py-3 dark:border-stone-700/60">
+                        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-black text-amber-600 dark:text-amber-300">
+                          <Luggage className="h-3.5 w-3.5" />
+                          {baggageRule.shortName}行李额
+                        </div>
+                        <div className="space-y-1">
+                          {getBaggageRuleLines(baggageRule).map((line) => {
+                            const [scope, allowance] = line.split('｜');
+                            return <p key={line} className="flex items-start gap-2 text-[9px] leading-relaxed"><span className={`shrink-0 rounded px-1.5 py-0.5 font-black ${scope === '每人' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}>{scope}</span><span className="pt-0.5 font-bold text-stone-600 dark:text-stone-300">{allowance}</span></p>;
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

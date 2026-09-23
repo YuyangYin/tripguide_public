@@ -62,10 +62,11 @@ export const AIRLINE_RULES: AirlineRule[] = [
     id: 'klm',
     name: '荷兰皇家航空',
     shortName: '荷兰皇家航空',
-    summary: '四人合计：3 件 23kg 托运行李；每人 1 件手提行李、1 个小包。',
+    summary: '四人合计：3 件 23kg 托运行李；每人 1 件手提行李、1 个小包，手提行李与小包合计不超过 12kg。',
     checked: { scope: 'group', maxPieces: 3, maxKgPerPiece: 23 },
     carryOn: { scope: 'person', maxPieces: 1 },
     personal: { scope: 'person', maxPieces: 1 },
+    combinedCarryPersonalKg: 12,
   },
   {
     id: 'norwegian',
@@ -97,6 +98,34 @@ export const DEFAULT_BAGGAGE: MemberBaggage[] = TRAVEL_MEMBER_IDS.map((id) => ({
 }));
 
 export const getAirlineRule = (airlineId: AirlineId) => AIRLINE_RULES.find((rule) => rule.id === airlineId) || AIRLINE_RULES[0];
+
+export function getFlightAirlineRule(airline: string, flightNo = ''): AirlineRule | null {
+  const value = `${airline} ${flightNo}`.toLowerCase();
+  if (/air\s*china|中国国际航空|国航|\bca\s*\d/.test(value)) return getAirlineRule('air-china');
+  if (/swiss|瑞士国际航空|瑞士航空|\blx\s*\d/.test(value)) return getAirlineRule('swiss');
+  if (/vueling|伏林|\bvy\s*\d/.test(value)) return getAirlineRule('vueling');
+  if (/klm|荷兰皇家航空|\bkl\s*\d/.test(value)) return getAirlineRule('klm');
+  if (/norwegian|挪威穿梭|\bdy\s*\d/.test(value)) return getAirlineRule('norwegian');
+  if (/\bsas\b|北欧航空|\bsk\s*\d/.test(value)) return getAirlineRule('sas');
+  return null;
+}
+
+export function getBaggageRuleLines(rule: AirlineRule): string[] {
+  switch (rule.id) {
+    case 'air-china':
+      return ['每人｜托运行李 1 件，每件不超过 23kg', '每人｜手提行李 1 件', '每人｜小包 1 个'];
+    case 'swiss':
+      return ['每人｜托运行李 1 件，每件不超过 23kg', '每人｜手提行李 1 件 + 小包 1 个', '每人｜手提行李与小包合计不超过 12kg'];
+    case 'vueling':
+      return ['四人合计｜托运行李 3 件，每件不超过 25kg', '每人｜小包 1 个', '全部｜无手提行李额'];
+    case 'klm':
+      return ['四人合计｜托运行李 3 件，每件不超过 23kg', '每人｜手提行李 1 件 + 小包 1 个', '每人｜手提行李与小包合计不超过 12kg'];
+    case 'norwegian':
+      return ['四人合计｜托运行李 3 件，每件不超过 23kg', '四人合计｜手提行李 3 件', '每人｜小包 1 个', '有手提行李者｜手提行李与小包合计不超过 10kg'];
+    case 'sas':
+      return ['每人｜托运行李 1 件，每件不超过 23kg', '四人合计｜手提行李 4 件，每件不超过 8kg', '每人｜小包 1 个'];
+  }
+}
 
 export const parseBaggageWeights = (value: string): number[] => value
   .split(/[，,、;；/\s]+/)
