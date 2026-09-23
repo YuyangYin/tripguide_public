@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CopyButton } from './CopyButton';
 import { 
@@ -20,6 +20,7 @@ import {
   Check,
   ExternalLink,
   Pencil,
+  RefreshCw,
   Save,
   X
 } from 'lucide-react';
@@ -31,6 +32,8 @@ import TripSpotModal from './TripSpotModal';
 import ScreenshotPlaceImporter, { type ScreenshotImportMode } from './ScreenshotPlaceImporter';
 import XiaohongshuSearchPanel from './XiaohongshuSearchPanel';
 import type { TravelScreenshotResult } from '../lib/parseTravelScreenshot';
+import DayWeatherCard, { CompactDayWeather } from './DayWeatherCard';
+import { fetchTripWeatherSnapshot, INITIAL_TRIP_WEATHER_SNAPSHOT, localDateKey, type TripWeatherSnapshot } from '../lib/tripWeather';
 
 interface ItineraryTimelineProps {
   theme: ThemeConfig;
@@ -303,7 +306,29 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
   const [checkedDays, setCheckedDays, , checkedDaysError] = useSharedValue<Record<string, boolean>>('checked_days', 'polar_checked_days', {});
   const [editingDay, setEditingDay] = useState<ItineraryDay | null>(null);
   const [activeSpot, setActiveSpot] = useState<TripSpot | null>(null);
+  const [weatherSnapshot, setWeatherSnapshot, weatherLoaded, weatherSyncError] = useSharedValue<TripWeatherSnapshot>('trip_weather', 'trip_weather_snapshot_v1', INITIAL_TRIP_WEATHER_SNAPSHOT);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherFetchError, setWeatherFetchError] = useState('');
+  const weatherRefreshAttempted = useRef(false);
   const orderedDays = useMemo(() => [...days].sort((a, b) => a.dayNum - b.dayNum), [days]);
+
+  const refreshWeather = useCallback(async () => {
+    setWeatherLoading(true);
+    setWeatherFetchError('');
+    try {
+      setWeatherSnapshot(await fetchTripWeatherSnapshot());
+    } catch (reason) {
+      setWeatherFetchError(reason instanceof Error ? reason.message : '天气获取失败，继续显示上一次结果');
+    } finally {
+      setWeatherLoading(false);
+    }
+  }, [setWeatherSnapshot]);
+
+  useEffect(() => {
+    if (!weatherLoaded || weatherRefreshAttempted.current) return;
+    weatherRefreshAttempted.current = true;
+    void refreshWeather();
+  }, [refreshWeather, weatherLoaded]);
 
   useEffect(() => {
     if (!daysLoaded) return;
@@ -353,10 +378,18 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden h-full">
-      {(daysError || checkedDaysError) && <p role="alert" className="mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-[10px] font-bold text-red-500">云端同步异常：{daysError || checkedDaysError}</p>}
+      {(daysError || checkedDaysError || weatherSyncError) && <p role="alert" className="mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-[10px] font-bold text-red-500">云端同步异常：{daysError || checkedDaysError || weatherSyncError}</p>}
 
       {/* TIMELINE LIST CONTAINER */}
       <div className="flex-1 overflow-y-auto pr-1 relative px-1 space-y-4 pb-24 select-none scrollbar-none">
+
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-sky-400/20 bg-sky-400/5 px-3 py-2">
+          <div>
+            <p className="text-[10px] font-black text-sky-600 dark:text-sky-300">行程天气预报</p>
+            <p className="mt-0.5 text-[9px] text-stone-400">Open-Meteo · 当前显示 {weatherSnapshot.fetchedDate} 抓取的数据{weatherFetchError ? ` · 更新失败：${weatherFetchError}` : ''}</p>
+          </div>
+          <button type="button" disabled={weatherLoading} onClick={() => void refreshWeather()} className="flex shrink-0 items-center gap-1 rounded-lg bg-sky-500 px-2.5 py-1.5 text-[9px] font-black text-white disabled:opacity-50"><RefreshCw className={`h-3 w-3 ${weatherLoading ? 'animate-spin' : ''}`} />{weatherLoading ? '更新中' : '刷新天气'}</button>
+        </div>
 
         {orderedDays.map((day) => {
           const isExpanded = expandedDay === day.id;
@@ -364,6 +397,7 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
           const isAutoCompleted = isDayCompleted(day.date, currentDate);
           const isToday = isDayToday(day.date, currentDate);
           const isDayFinished = isChecked || isAutoCompleted;
+          const weather = weatherSnapshot.forecasts[day.id];
             
           const regionColors: Record<ItineraryDay['region'], string> = {
             finland: 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400',
@@ -423,6 +457,7 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
                       <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${currentC}`}>
                         {day.regionEmoji} {day.regionLabel}
                       </span>
+                      {weather && <CompactDayWeather forecast={weather} />}
 
                       {/* Real-time reactive status badges */}
                       {isToday && (
@@ -492,6 +527,7 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
                       className="border-t border-stone-100 dark:border-stone-800/60"
                     >
                       <div className="p-4 pl-4 space-y-3.5 text-stone-700 dark:text-stone-300 select-text">
+                        {weather && <DayWeatherCard forecast={weather} fetchedDate={weatherSnapshot.fetchedDate || localDateKey()} />}
                         <XiaohongshuSearchPanel route={day.route} regionLabel={day.regionLabel} />
                         {/* MAIN CONTENT GRID (Sights Sliced Out elegantly) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
