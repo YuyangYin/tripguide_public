@@ -20,6 +20,10 @@ export interface TripWeatherForecast {
   precipitationSum: number;
   windSpeedMax: number;
   windGustMax: number;
+  sunrise: string;
+  sunset: string;
+  sunsetArrivalTime: string;
+  timezone: string;
   clothingAdvice: string;
 }
 
@@ -83,9 +87,11 @@ type DailyWeather = {
   precipitation_sum: number[];
   wind_speed_10m_max: number[];
   wind_gusts_10m_max: number[];
+  sunrise: string[];
+  sunset: string[];
 };
 
-interface OpenMeteoResponse { daily: DailyWeather }
+interface OpenMeteoResponse { daily: DailyWeather; timezone: string }
 
 const roundOne = (value: number) => Math.round(value * 10) / 10;
 
@@ -96,11 +102,25 @@ export const localDateKey = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
+export const formatLocalClock = (value: string | undefined) => {
+  if (!value) return '待更新';
+  const match = value.match(/T(\d{2}:\d{2})/);
+  return match?.[1] || value.slice(-5);
+};
+
+export const subtractMinutesFromLocalTime = (value: string | undefined, minutes: number) => {
+  const match = value?.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/);
+  if (!match) return '';
+  const total = Number(match[2]) * 60 + Number(match[3]) - minutes;
+  const normalized = ((total % 1440) + 1440) % 1440;
+  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
+};
+
 export async function fetchTripWeatherSnapshot(now = new Date()): Promise<TripWeatherSnapshot> {
   const params = new URLSearchParams({
     latitude: TRIP_WEATHER_LOCATIONS.map((location) => location.latitude).join(','),
     longitude: TRIP_WEATHER_LOCATIONS.map((location) => location.longitude).join(','),
-    daily: 'weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max',
+    daily: 'weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset',
     timezone: 'auto',
     forecast_days: '16',
   });
@@ -111,7 +131,8 @@ export async function fetchTripWeatherSnapshot(now = new Date()): Promise<TripWe
   const forecasts: Record<string, TripWeatherForecast> = {};
 
   TRIP_WEATHER_LOCATIONS.forEach((location, responseIndex) => {
-    const daily = results[responseIndex]?.daily;
+    const locationResult = results[responseIndex];
+    const daily = locationResult?.daily;
     const dateIndex = daily?.time.indexOf(location.date) ?? -1;
     if (!daily || dateIndex < 0) return;
     const forecast: TripWeatherForecast = {
@@ -128,6 +149,10 @@ export async function fetchTripWeatherSnapshot(now = new Date()): Promise<TripWe
       precipitationSum: roundOne(daily.precipitation_sum[dateIndex]),
       windSpeedMax: roundOne(daily.wind_speed_10m_max[dateIndex]),
       windGustMax: roundOne(daily.wind_gusts_10m_max[dateIndex]),
+      sunrise: daily.sunrise[dateIndex],
+      sunset: daily.sunset[dateIndex],
+      sunsetArrivalTime: subtractMinutesFromLocalTime(daily.sunset[dateIndex], 45),
+      timezone: locationResult.timezone,
       clothingAdvice: '',
     };
     forecast.clothingAdvice = getClothingAdvice(forecast);
@@ -143,27 +168,27 @@ export async function fetchTripWeatherSnapshot(now = new Date()): Promise<TripWe
   };
 }
 
-const seedForecast = (dayId: string, date: string, location: string, weatherCode: number, temperatureMax: number, temperatureMin: number, apparentMax: number, apparentMin: number, precipitationProbability: number, precipitationSum: number, windSpeedMax: number, windGustMax: number): TripWeatherForecast => {
-  const forecast: TripWeatherForecast = { dayId, date, location, weatherCode, description: getWeatherDescription(weatherCode), temperatureMax, temperatureMin, apparentMax, apparentMin, precipitationProbability, precipitationSum, windSpeedMax, windGustMax, clothingAdvice: '' };
+const seedForecast = (dayId: string, date: string, location: string, weatherCode: number, temperatureMax: number, temperatureMin: number, apparentMax: number, apparentMin: number, precipitationProbability: number, precipitationSum: number, windSpeedMax: number, windGustMax: number, sunrise: string, sunset: string, timezone: string): TripWeatherForecast => {
+  const forecast: TripWeatherForecast = { dayId, date, location, weatherCode, description: getWeatherDescription(weatherCode), temperatureMax, temperatureMin, apparentMax, apparentMin, precipitationProbability, precipitationSum, windSpeedMax, windGustMax, sunrise, sunset, sunsetArrivalTime: subtractMinutesFromLocalTime(sunset, 45), timezone, clothingAdvice: '' };
   forecast.clothingAdvice = getClothingAdvice(forecast);
   return forecast;
 };
 
 const SEEDED_FORECASTS = [
-  seedForecast('day-1', '2026-09-24', '北京', 61, 26.1, 18.7, 29.2, 20.5, 88, 10.3, 11.4, 28.1),
-  seedForecast('day-2', '2026-09-25', '巴塞罗那', 1, 30.1, 20.4, 31.9, 21.5, 0, 0, 11.2, 30.2),
-  seedForecast('day-3', '2026-09-26', '巴塞罗那', 2, 26.8, 20.1, 30, 21.4, 0, 0, 11.8, 30.2),
-  seedForecast('day-4', '2026-09-27', '米伦', 1, 20, 11.3, 18.8, 7.9, 3, 0, 8, 20.5),
-  seedForecast('day-5', '2026-09-28', '厄希嫩湖', 3, 20.9, 10.4, 19.5, 7.7, 7, 0, 10.1, 28.4),
-  seedForecast('day-6', '2026-09-29', 'Loen', 51, 14.6, 5.1, 13.3, 3.2, 47, 0.3, 5.5, 42.5),
-  seedForecast('day-7', '2026-09-30', '盖朗厄尔', 53, 16.4, 10.4, 17.1, 8.6, 32, 11.4, 7.8, 44.3),
-  seedForecast('day-8', '2026-10-01', 'Flåm', 51, 19, 14.5, 20.8, 15.1, 63, 1.5, 5.3, 50.4),
-  seedForecast('day-9', '2026-10-02', '亨宁斯韦尔', 53, 11.8, 11.3, 10.9, 9.4, 51, 8.1, 15.9, 44.3),
-  seedForecast('day-10', '2026-10-03', 'Reine', 51, 12.2, 10, 12.1, 7.5, 46, 3.3, 16.1, 48.6),
-  seedForecast('day-11', '2026-10-04', 'Svolvær', 80, 11.5, 9.5, 10, 4.8, 49, 17.1, 31.8, 79.2),
-  seedForecast('day-12', '2026-10-05', '斯德哥尔摩', 53, 15.4, 11.3, 13.2, 10.4, 20, 5.1, 14, 37.8),
-  seedForecast('day-13', '2026-10-06', '斯德哥尔摩', 53, 13.9, 9.6, 11.1, 8.1, 20, 3.3, 11.5, 28.4),
-  seedForecast('day-14', '2026-10-07', '香港', 51, 30.9, 24, 35.7, 28, 51, 1.5, 15.9, 42.5),
+  seedForecast('day-1', '2026-09-24', '北京', 61, 26.1, 18.7, 29.2, 20.5, 88, 10.3, 11.4, 28.1, '2026-09-24T06:03', '2026-09-24T18:09', 'Asia/Shanghai'),
+  seedForecast('day-2', '2026-09-25', '巴塞罗那', 1, 30.1, 20.4, 31.9, 21.5, 0, 0, 11.2, 30.2, '2026-09-25T07:41', '2026-09-25T19:43', 'Europe/Madrid'),
+  seedForecast('day-3', '2026-09-26', '巴塞罗那', 2, 26.8, 20.1, 30, 21.4, 0, 0, 11.8, 30.2, '2026-09-26T07:42', '2026-09-26T19:42', 'Europe/Madrid'),
+  seedForecast('day-4', '2026-09-27', '米伦', 1, 20, 11.3, 18.8, 7.9, 3, 0, 8, 20.5, '2026-09-27T07:21', '2026-09-27T19:16', 'Europe/Zurich'),
+  seedForecast('day-5', '2026-09-28', '厄希嫩湖', 3, 20.9, 10.4, 19.5, 7.7, 7, 0, 10.1, 28.4, '2026-09-28T07:23', '2026-09-28T19:15', 'Europe/Zurich'),
+  seedForecast('day-6', '2026-09-29', 'Loen', 51, 14.6, 5.1, 13.3, 3.2, 47, 0.3, 5.5, 42.5, '2026-09-29T07:34', '2026-09-29T19:10', 'Europe/Oslo'),
+  seedForecast('day-7', '2026-09-30', '盖朗厄尔', 53, 16.4, 10.4, 17.1, 8.6, 32, 11.4, 7.8, 44.3, '2026-09-30T07:35', '2026-09-30T19:05', 'Europe/Oslo'),
+  seedForecast('day-8', '2026-10-01', 'Flåm', 51, 19, 14.5, 20.8, 15.1, 63, 1.5, 5.3, 50.4, '2026-10-01T07:37', '2026-10-01T19:03', 'Europe/Oslo'),
+  seedForecast('day-9', '2026-10-02', '亨宁斯韦尔', 53, 11.8, 11.3, 10.9, 9.4, 51, 8.1, 15.9, 44.3, '2026-10-02T07:19', '2026-10-02T18:23', 'Europe/Oslo'),
+  seedForecast('day-10', '2026-10-03', 'Reine', 51, 12.2, 10, 12.1, 7.5, 46, 3.3, 16.1, 48.6, '2026-10-03T07:27', '2026-10-03T18:24', 'Europe/Oslo'),
+  seedForecast('day-11', '2026-10-04', 'Svolvær', 80, 11.5, 9.5, 10, 4.8, 49, 17.1, 31.8, 79.2, '2026-10-04T07:25', '2026-10-04T18:13', 'Europe/Oslo'),
+  seedForecast('day-12', '2026-10-05', '斯德哥尔摩', 53, 15.4, 11.3, 13.2, 10.4, 20, 5.1, 14, 37.8, '2026-10-05T07:01', '2026-10-05T18:09', 'Europe/Stockholm'),
+  seedForecast('day-13', '2026-10-06', '斯德哥尔摩', 53, 13.9, 9.6, 11.1, 8.1, 20, 3.3, 11.5, 28.4, '2026-10-06T07:04', '2026-10-06T18:06', 'Europe/Stockholm'),
+  seedForecast('day-14', '2026-10-07', '香港', 51, 30.9, 24, 35.7, 28, 51, 1.5, 15.9, 42.5, '2026-10-07T06:16', '2026-10-07T18:05', 'Asia/Hong_Kong'),
 ];
 
 export const INITIAL_TRIP_WEATHER_SNAPSHOT: TripWeatherSnapshot = {

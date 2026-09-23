@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { getClothingAdvice, getWeatherDescription, localDateKey } from './tripWeather';
+import { formatLocalClock, getClothingAdvice, getWeatherDescription, localDateKey, subtractMinutesFromLocalTime } from './tripWeather';
 
 describe('trip weather', () => {
   it('maps WMO weather codes to Chinese descriptions', () => {
@@ -18,5 +18,10 @@ describe('trip weather', () => {
 
   it('formats a local calendar date without UTC shifting', () => {
     assert.equal(localDateKey(new Date(2026, 8, 23, 1, 0)), '2026-09-23');
+  });
+
+  it('formats local sunrise and sunset without timezone conversion', () => {
+    assert.equal(formatLocalClock('2026-09-25T19:43'), '19:43');
+    assert.equal(subtractMinutesFromLocalTime('2026-09-25T19:43', 45), '18:58');
   });
 });
