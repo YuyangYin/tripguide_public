@@ -224,6 +224,17 @@ function VoucherCard({
             </span>
           </div>
 
+          {(voucher.summary || voucher.location || voucher.phone || voucher.confirmationNo || voucher.details?.length) && (
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-[10px] text-stone-700">
+              {voucher.summary && <p className="font-extrabold text-stone-900">{voucher.summary}</p>}
+              {voucher.location && <p className="mt-1"><strong>地点：</strong>{voucher.location}</p>}
+              {voucher.phone && <p className="mt-1"><strong>电话：</strong>{voucher.phone}</p>}
+              {voucher.confirmationNo && <p className="mt-1"><strong>确认号：</strong><span className="font-mono">{voucher.confirmationNo}</span></p>}
+              {voucher.endDate && <p className="mt-1"><strong>结束：</strong>{[voucher.endDate, (voucher.endTime || '').slice(0, 5)].filter(Boolean).join(' ')}</p>}
+              {voucher.details?.map((detail: string) => <p key={detail} className="mt-1">• {detail}</p>)}
+            </div>
+          )}
+
           <div className="pt-1">
             <span className="text-[8px] font-black text-stone-400 block uppercase mb-1.5">IMAGE / DOC SOURCE</span>
             {voucher.fileData ? (

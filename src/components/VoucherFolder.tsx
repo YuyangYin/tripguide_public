@@ -26,7 +26,9 @@ import {
   Copy,
   ExternalLink,
   Phone,
-  Luggage
+  Luggage,
+  UtensilsCrossed,
+  CarFront
 } from 'lucide-react';
 import { getCardStyle, getDropzoneStyle, getInputStyle, getTabBarStyle, getTabItemStyle, getPrimaryButtonStyle, getSecondaryButtonStyle } from '../lib/themeStyles';
 import { extractDocumentText } from '../lib/extractDocumentText';
@@ -62,10 +64,12 @@ const getCityFromAddress = (address: string, hotelName: string) => {
   return parts[0] || '北欧城市';
 };
 
+type VoucherCategory = 'dining' | 'rent' | 'ticket' | 'stay' | 'flight' | 'doc';
+
 interface VoucherItem {
   id: string;
   title: string;
-  category: 'ticket' | 'stay' | 'rent' | 'flight' | 'doc';
+  category: VoucherCategory;
   fileName: string;
   fileType: string;
   fileSize: string;
@@ -74,8 +78,24 @@ interface VoucherItem {
   uploadDate: string;
   useDate?: string;
   useTime?: string;
+  endDate?: string;
+  endTime?: string;
+  location?: string;
+  phone?: string;
+  confirmationNo?: string;
+  summary?: string;
+  details?: string[];
   status: 'Ready' | 'Verified' | 'Pending';
 }
+
+const VOUCHER_CATEGORY_META: Record<VoucherCategory, { label: string; shortLabel: string }> = {
+  dining: { label: '餐饮预订', shortLabel: '餐饮' },
+  rent: { label: '租车预订', shortLabel: '租车' },
+  ticket: { label: '景点门票', shortLabel: '门票' },
+  stay: { label: '住宿文件', shortLabel: '住宿' },
+  flight: { label: '航班文件', shortLabel: '航班' },
+  doc: { label: '其他文件', shortLabel: '其他' },
+};
 
 interface HotelStay {
   id: string;
@@ -213,7 +233,8 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
   const [title, setTitle] = useState('');
   const [useDate, setUseDate] = useState('');
   const [useTime, setUseTime] = useState('');
-  const [category, setCategory] = useState<'ticket' | 'stay' | 'rent' | 'flight' | 'doc'>('ticket');
+  const [category, setCategory] = useState<VoucherCategory>('ticket');
+  const [voucherCategoryFilter, setVoucherCategoryFilter] = useState<'all' | 'dining' | 'rent' | 'ticket'>('all');
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileDataUrl, setSelectedFileDataUrl] = useState<string>('');
@@ -788,6 +809,23 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
     const prettyTime = (timeStr || '').slice(0, 5);
     return [prettyDate, prettyTime].filter(Boolean).join(' ');
   };
+
+  const visibleVouchers = useMemo(() => {
+    const sorted = [...vouchers].sort((a, b) => {
+      const left = `${a.useDate || '9999-99-99'} ${a.useTime || '99:99'}`;
+      const right = `${b.useDate || '9999-99-99'} ${b.useTime || '99:99'}`;
+      return left.localeCompare(right);
+    });
+    if (voucherCategoryFilter === 'all') return sorted;
+    if (voucherCategoryFilter === 'ticket') return sorted.filter((item) => !['dining', 'rent'].includes(item.category));
+    return sorted.filter((item) => item.category === voucherCategoryFilter);
+  }, [voucherCategoryFilter, vouchers]);
+
+  const voucherCategoryCounts = useMemo(() => ({
+    dining: vouchers.filter((item) => item.category === 'dining').length,
+    rent: vouchers.filter((item) => item.category === 'rent').length,
+    ticket: vouchers.filter((item) => !['dining', 'rent'].includes(item.category)).length,
+  }), [vouchers]);
 
   const renderLocalDate = (dateStr?: string) => {
     const parts = (dateStr || '').split('-');
@@ -1470,6 +1508,17 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
             </button>
           </div>
 
+          <div className="grid grid-cols-4 gap-1.5">
+            {([
+              ['all', '全部', vouchers.length],
+              ['dining', '餐饮', voucherCategoryCounts.dining],
+              ['rent', '租车', voucherCategoryCounts.rent],
+              ['ticket', '其他', voucherCategoryCounts.ticket],
+            ] as const).map(([value, label, count]) => (
+              <button key={value} type="button" onClick={() => setVoucherCategoryFilter(value)} className={`rounded-lg px-1.5 py-2 text-[9px] font-black transition ${voucherCategoryFilter === value ? 'bg-purple-500 text-white' : 'bg-stone-500/10 text-stone-500 dark:text-stone-300'}`}>{label} · {count}</button>
+            ))}
+          </div>
+
           {/* Upload Zone & Form Container */}
           {showAddVoucherForm && (
             <form onSubmit={handleAddVoucher} className={`space-y-4 p-4 min-w-0 overflow-hidden animate-fadeIn ${getCardStyle(theme.id, 'subcard')}`}>
@@ -1488,6 +1537,18 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
                     className={`w-full min-w-0 max-w-full px-3 py-2 text-xs font-medium outline-none ${getInputStyle(theme.id)}`}
                   />
                 </div>
+
+                <label className={`block text-[10px] font-extrabold uppercase tracking-widest ${isNewspaper ? 'text-[#1B1917]' : 'opacity-70'}`}>
+                  预订分类
+                  <select value={category} onChange={(event) => setCategory(event.target.value as VoucherCategory)} className={`mt-1 w-full px-3 py-2 text-xs font-bold outline-none ${getInputStyle(theme.id)}`}>
+                    <option value="dining">餐饮预订</option>
+                    <option value="rent">租车预订</option>
+                    <option value="ticket">景点门票</option>
+                    <option value="stay">住宿文件</option>
+                    <option value="flight">航班文件</option>
+                    <option value="doc">其他文件</option>
+                  </select>
+                </label>
 
                 <div className="grid grid-cols-1 gap-3 min-w-0">
                   <div className="space-y-1 min-w-0">
@@ -1599,23 +1660,24 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
 
           {/* Grid List of Vouchers */}
           <div className="space-y-5">
-            {vouchers.length === 0 && !showAddVoucherForm ? (
+            {visibleVouchers.length === 0 && !showAddVoucherForm ? (
               <p className="text-center text-xs opacity-50 py-8">暂无票根，点击右上角「添加」录入</p>
             ) : (
               <div className="grid grid-cols-1 gap-2.5">
-                {vouchers.map((item) => {
+                {visibleVouchers.map((item) => {
+                  const categoryMeta = VOUCHER_CATEGORY_META[item.category] || VOUCHER_CATEGORY_META.doc;
                   return (
                     <div
                       key={item.id}
                       onClick={async () => {
                         if (!item.filePath) {
-                          onPreviewVoucher(item, vouchers);
+                          onPreviewVoucher(item, visibleVouchers);
                           return;
                         }
                         try {
                           const signedUrl = await getVoucherUrl(item.filePath);
                           const withUrl = { ...item, fileData: signedUrl };
-                          onPreviewVoucher(withUrl, vouchers.map((voucher) => voucher.id === item.id ? withUrl : voucher));
+                          onPreviewVoucher(withUrl, visibleVouchers.map((voucher) => voucher.id === item.id ? withUrl : voucher));
                         } catch (error) {
                           setVoucherError(error instanceof Error ? error.message : '票据预览失败');
                         }
@@ -1623,19 +1685,18 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
                       className={`p-3 text-xs flex items-center justify-between transition-all cursor-pointer relative overflow-hidden group ${getCardStyle(theme.id, 'interactive')}`}
                     >
                       <div className="flex gap-2.5 items-center min-w-0 pr-2">
-                        <div className={`p-2 rounded-lg shrink-0 ${
-                          item.fileType.startsWith('image/')
-                            ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-                            : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                        }`}>
-                          <FileText className="w-5 h-5" />
+                        <div className={`p-2 rounded-lg shrink-0 ${item.category === 'dining' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' : item.category === 'rent' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' : item.fileType.startsWith('image/') ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'}`}>
+                          {item.category === 'dining' ? <UtensilsCrossed className="w-5 h-5" /> : item.category === 'rent' ? <CarFront className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
                         </div>
 
                         <div className="space-y-0.5 min-w-0">
                           <h6 className="font-extrabold truncate text-stone-800 dark:text-stone-100">{item.title}</h6>
+                          <span className={`inline-flex rounded px-1.5 py-0.5 text-[8px] font-black ${item.category === 'dining' ? 'bg-orange-500/10 text-orange-500' : item.category === 'rent' ? 'bg-blue-500/10 text-blue-500' : 'bg-purple-500/10 text-purple-500'}`}>{categoryMeta.label}</span>
                           {(item.useDate || item.useTime) && (
-                            <p className="text-[10px] opacity-70">使用 {formatVoucherWhen(item.useDate, item.useTime)}</p>
+                            <p className="text-[10px] opacity-70">{item.category === 'rent' ? '取车' : '使用'} {formatVoucherWhen(item.useDate, item.useTime)}{item.endDate ? ` → ${formatVoucherWhen(item.endDate, item.endTime)}` : ''}</p>
                           )}
+                          {item.summary && <p className="text-[9px] font-semibold opacity-75 line-clamp-2">{item.summary}</p>}
+                          {item.confirmationNo && <p className="text-[9px] font-mono opacity-60">确认号 {item.confirmationNo}</p>}
                           <p className="text-[9px] opacity-60 truncate">{item.fileName} • {item.fileSize}</p>
                         </div>
                       </div>
