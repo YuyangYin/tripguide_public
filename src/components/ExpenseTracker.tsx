@@ -1,14 +1,15 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowRight, Check, CircleDollarSign, FileSpreadsheet, Pencil, Plus, Receipt, Trash2, Upload, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, CircleDollarSign, FileSpreadsheet, Pencil, Plus, Receipt, Trash2, Upload, X } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { getCardStyle, getInputStyle, getPrimaryButtonStyle } from '../lib/themeStyles';
 import { useSharedTable, useSharedValue } from '../lib/useSharedTable';
-import { applySettlementPayments, calculateMemberBalances, calculateSettlementTransfers, normalizeExpense, SharedExpense, SupportedCurrency, type SettlementPayment } from '../lib/expenseSettlement';
+import { applySettlementPayments, calculateMemberBalances, calculateSettlementTransfers, getRepayableMemberIds, normalizeExpense, SharedExpense, SupportedCurrency, type SettlementPayment } from '../lib/expenseSettlement';
 import { parseExpenseFile, ExpenseImportResult } from '../lib/expenseImport';
 import { TRAVEL_MEMBERS, TRAVEL_MEMBER_IDS, TravelMemberId } from '../lib/travelMembers';
 import { useCurrentTravelMember } from './TravelMemberContext';
 import { filterExpenses, groupExpensesByDate, type ExpenseSettlementFilter } from '../lib/expenseFilters';
+import { calculateExpenseStatistics } from '../lib/expenseStats';
 
 interface ExpenseTrackerProps { theme: ThemeConfig; }
 
@@ -37,18 +38,20 @@ const TRIP_BUDGET = 105849.96;
 const LEGACY_DIRECTORY_ID = '__payer_directory__';
 const getLocalDate = () => new Date().toLocaleDateString('en-CA');
 
-function MemberSelector({ selected, onChange, single = false }: {
+function MemberSelector({ selected, onChange, single = false, allowed }: {
   selected: TravelMemberId[];
   onChange: (members: TravelMemberId[]) => void;
   single?: boolean;
+  allowed?: TravelMemberId[];
 }) {
   return (
     <div className="grid grid-cols-4 gap-1.5">
       {TRAVEL_MEMBERS.map((member) => {
         const active = selected.includes(member.id);
+        const disabled = allowed ? !allowed.includes(member.id) : false;
         return (
-          <button key={member.id} type="button" onClick={() => onChange(single ? [member.id] : active ? selected.filter((id) => id !== member.id) : [...selected, member.id])}
-            className={`rounded-lg border px-1 py-2 text-[10px] font-black transition ${active ? 'border-sky-400 bg-sky-500/15 text-sky-500' : 'border-stone-200/30 bg-white/5 opacity-55'}`}>
+          <button key={member.id} type="button" disabled={disabled} onClick={() => onChange(single ? [member.id] : active ? selected.filter((id) => id !== member.id) : [...selected, member.id])}
+            className={`rounded-lg border px-1 py-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-20 ${active ? 'border-sky-400 bg-sky-500/15 text-sky-500' : 'border-stone-200/30 bg-white/5 opacity-55'}`}>
             {active && <Check className="mx-auto mb-0.5 h-3 w-3" />}{member.label}
           </button>
         );
@@ -70,10 +73,12 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
   const [date, setDate] = useState(getLocalDate());
   const [payerId, setPayerId] = useState<TravelMemberId>(currentMember.id);
   const [splitMemberIds, setSplitMemberIds] = useState<TravelMemberId[]>(TRAVEL_MEMBER_IDS);
-  const [settled, setSettled] = useState(false);
+  const [settlementMode, setSettlementMode] = useState<'unsettled' | 'partial' | 'all'>('unsettled');
+  const [settledMemberIds, setSettledMemberIds] = useState<TravelMemberId[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [settlementFilter, setSettlementFilter] = useState<ExpenseSettlementFilter>('all');
+  const [expandedMemberStat, setExpandedMemberStat] = useState<TravelMemberId | null>(currentMember.id);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<SharedExpense | null>(null);
   const [importResult, setImportResult] = useState<ExpenseImportResult | null>(null);
@@ -87,9 +92,10 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
   const baseBalances = useMemo(() => calculateMemberBalances(expenses, normalizedRates), [expenses, normalizedRates]);
   const balances = useMemo(() => applySettlementPayments(baseBalances, settlementPayments), [baseBalances, settlementPayments]);
   const transfers = useMemo(() => calculateSettlementTransfers(balances), [balances]);
+  const expenseStats = useMemo(() => calculateExpenseStatistics(expenses, normalizedRates), [expenses, normalizedRates]);
   const unsettledExpenses = expenses.filter((expense) => !expense.settled);
   const toCNY = (expense: SharedExpense) => expense.amount * (expense.currency === 'ISK' ? 0.051 : normalizedRates[expense.currency]);
-  const totalCNY = expenses.reduce((sum, expense) => sum + toCNY(expense), 0);
+  const totalCNY = expenseStats.total;
   const expenseDates = useMemo(() => [...new Set(expenses.map((expense) => expense.date).filter(Boolean))].sort((a, b) => b.localeCompare(a)), [expenses]);
   const filteredExpenses = useMemo(() => filterExpenses(expenses, { category: categoryFilter, date: dateFilter, settlement: settlementFilter }), [categoryFilter, dateFilter, expenses, settlementFilter]);
   const filteredGroups = useMemo(() => groupExpensesByDate(filteredExpenses), [filteredExpenses]);
@@ -97,14 +103,20 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
 
   const resetForm = () => {
     setTitle(''); setAmount(''); setCurrency('CNY'); setCategory('🍔 餐饮'); setDate(getLocalDate()); setPayerId(currentMember.id);
-    setSplitMemberIds(TRAVEL_MEMBER_IDS); setSettled(false); setEditingId(null);
+    setSplitMemberIds(TRAVEL_MEMBER_IDS); setSettlementMode('unsettled'); setSettledMemberIds([]); setEditingId(null);
   };
+
+  const repayableMemberIds = splitMemberIds.filter((id) => id !== payerId);
+  useEffect(() => {
+    setSettledMemberIds((current) => current.filter((id) => repayableMemberIds.includes(id)));
+  }, [payerId, splitMemberIds]);
 
   const saveExpense = (event: FormEvent) => {
     event.preventDefault();
     const numericAmount = Number(amount);
     if (!title.trim() || !Number.isFinite(numericAmount) || numericAmount <= 0 || splitMemberIds.length === 0) return;
-    const row: SharedExpense = { id: editingId || crypto.randomUUID(), title: title.trim(), amount: numericAmount, currency, category, date, payerId, splitMemberIds, settled };
+    const completedMembers = settlementMode === 'all' ? repayableMemberIds : settlementMode === 'partial' ? settledMemberIds.filter((id) => repayableMemberIds.includes(id)) : [];
+    const row: SharedExpense = { id: editingId || crypto.randomUUID(), title: title.trim(), amount: numericAmount, currency, category, date, payerId, splitMemberIds, settledMemberIds: completedMembers, settled: settlementMode === 'all' };
     setExpenses((current) => editingId ? current.map((expense) => expense.id === editingId ? row : expense) : [row, ...current]);
     resetForm();
   };
@@ -119,7 +131,7 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
       setAmount(String(item.amount));
       setCurrency(item.currency);
     }
-    setCategory(item.category); setDate(item.date); setPayerId(item.payerId!); setSplitMemberIds(item.splitMemberIds!); setSettled(Boolean(item.settled));
+    setCategory(item.category); setDate(item.date); setPayerId(item.payerId!); setSplitMemberIds(item.splitMemberIds!); setSettledMemberIds(item.settledMemberIds || []); setSettlementMode(item.settled ? 'all' : (item.settledMemberIds || []).length > 0 ? 'partial' : 'unsettled');
   };
 
   const handleImport = async (file: File) => {
@@ -160,6 +172,19 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
             <label key={code} className="flex items-center gap-1"><span className="w-14 shrink-0 font-black">1 {CURRENCY_LABELS[code]}</span><input aria-label={`${CURRENCY_LABELS[code]}兑人民币汇率`} type="number" step="0.001" min="0" value={normalizedRates[code]} onChange={(event) => setRates({ ...normalizedRates, [code]: Number(event.target.value) || DEFAULT_RATES[code] })} className={`min-w-0 flex-1 px-2 py-1 text-[10px] ${getInputStyle(theme.id)}`} /><span className="shrink-0 opacity-60">元</span></label>
           ))}
         </div>
+
+        <div className="mt-4 border-t border-stone-300/20 pt-3">
+          <div className="mb-2 flex items-center justify-between"><p className="text-[10px] font-black">团队各分类花费</p><span className="text-[9px] opacity-50">按账单总额统计</span></div>
+          {expenseStats.categories.length === 0 ? <p className="rounded-lg bg-white/5 px-3 py-2 text-center text-[9px] opacity-50">暂无分类统计</p> : <div className="grid grid-cols-2 gap-1.5">{expenseStats.categories.map((item) => <div key={item.category} className="flex items-center justify-between rounded-lg bg-white/5 px-2 py-1.5 text-[9px]"><span className="font-bold">{item.category}</span><span className="font-black">¥{item.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>)}</div>}
+        </div>
+
+        <div className="mt-4 border-t border-stone-300/20 pt-3">
+          <div className="mb-2 flex items-center justify-between"><p className="text-[10px] font-black">每个人的实际花费</p><span className="text-[9px] opacity-50">按分账人归属，可点开</span></div>
+          <div className="space-y-1.5">{expenseStats.members.map((member) => {
+            const expanded = expandedMemberStat === member.memberId;
+            return <div key={member.memberId} className="overflow-hidden rounded-xl border border-stone-200/20 bg-white/5"><button type="button" onClick={() => setExpandedMemberStat(expanded ? null : member.memberId)} className="flex w-full items-center gap-2 px-3 py-2 text-left"><span className="text-[10px] font-black">{member.memberId}</span><span className="ml-auto text-[11px] font-black text-sky-500">¥{member.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span><ChevronDown className={`h-3.5 w-3.5 opacity-50 transition ${expanded ? 'rotate-180' : ''}`} /></button>{expanded && <div className="border-t border-stone-300/15 px-3 py-2">{member.categories.length === 0 ? <p className="text-[9px] opacity-45">暂无个人花费</p> : <div className="space-y-1">{member.categories.map((item) => <div key={item.category} className="flex items-center justify-between text-[9px]"><span className="opacity-70">{item.category}</span><span className="font-black">¥{item.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>)}</div>}</div>}</div>;
+          })}</div>
+        </div>
       </section>
 
       <section className={`p-4 ${getCardStyle(theme.id, 'subcard')}`}>
@@ -199,8 +224,8 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
           <MemberSelector selected={splitMemberIds} onChange={setSplitMemberIds} />
           {splitMemberIds.length === 0 && <p className="mt-1 text-[9px] text-red-500">至少选择一名分账人</p>}
         </div>
-        <label className="flex items-center gap-2 text-[10px] font-bold"><input type="checkbox" checked={settled} onChange={(event) => setSettled(event.target.checked)} />此账单已结算</label>
-        <button disabled={splitMemberIds.length === 0} className={`flex w-full items-center justify-center gap-1 py-2 text-xs ${getPrimaryButtonStyle(theme.id)}`}><Plus className="h-4 w-4" />{editingId ? '保存修改' : '保存账单'}</button>
+        <div className="space-y-2"><p className="text-[9px] font-black opacity-60">账单结算方式</p><div className="grid grid-cols-3 gap-1.5">{([['unsettled', '未结算'], ['partial', '部分人结算'], ['all', '全部已结算']] as const).map(([mode, label]) => <button key={mode} type="button" onClick={() => { setSettlementMode(mode); if (mode === 'unsettled') setSettledMemberIds([]); }} className={`rounded-lg border px-1 py-2 text-[9px] font-black ${settlementMode === mode ? 'border-emerald-400 bg-emerald-500/15 text-emerald-500' : 'border-stone-200/30 bg-white/5 opacity-55'}`}>{label}</button>)}</div>{settlementMode === 'partial' && <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 p-2"><p className="mb-1.5 text-[9px] font-bold opacity-65">勾选已经向支出人完成结算的分账人</p><MemberSelector selected={settledMemberIds} onChange={setSettledMemberIds} allowed={repayableMemberIds} />{settledMemberIds.length === 0 && <p className="mt-1 text-[9px] text-amber-500">请选择至少一名已结算成员</p>}</div>}</div>
+        <button disabled={splitMemberIds.length === 0 || (settlementMode === 'partial' && settledMemberIds.length === 0)} className={`flex w-full items-center justify-center gap-1 py-2 text-xs ${getPrimaryButtonStyle(theme.id)}`}><Plus className="h-4 w-4" />{editingId ? '保存修改' : '保存账单'}</button>
       </form>
 
       <section className="space-y-2">
@@ -209,17 +234,21 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <label className="text-[9px] font-black opacity-65">支出分类<select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className={`mt-1 w-full px-2 py-2 text-[10px] ${getInputStyle(theme.id)}`}><option value="all">全部分类</option>{CATEGORIES.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label>
             <label className="text-[9px] font-black opacity-65">记录日期<select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className={`mt-1 w-full px-2 py-2 text-[10px] ${getInputStyle(theme.id)}`}><option value="all">全部日期</option>{expenseDates.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-            <label className="text-[9px] font-black opacity-65">结算状态<select value={settlementFilter} onChange={(event) => setSettlementFilter(event.target.value as ExpenseSettlementFilter)} className={`mt-1 w-full px-2 py-2 text-[10px] ${getInputStyle(theme.id)}`}><option value="all">全部状态</option><option value="unsettled">待结算</option><option value="settled">已结算</option></select></label>
+            <label className="text-[9px] font-black opacity-65">结算状态<select value={settlementFilter} onChange={(event) => setSettlementFilter(event.target.value as ExpenseSettlementFilter)} className={`mt-1 w-full px-2 py-2 text-[10px] ${getInputStyle(theme.id)}`}><option value="all">全部状态</option><option value="unsettled">待结算（含部分）</option><option value="partial">部分人已结算</option><option value="settled">全部已结算</option></select></label>
           </div>
           <div className="flex items-center justify-between rounded-lg bg-sky-500/10 px-3 py-2 text-[10px]"><span className="font-bold">筛选结果：{filteredExpenses.length} 笔</span><span className="font-black text-sky-500">折合 ¥{filteredTotalCNY.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
           {(categoryFilter !== 'all' || dateFilter !== 'all' || settlementFilter !== 'all') && <button type="button" onClick={() => { setCategoryFilter('all'); setDateFilter('all'); setSettlementFilter('all'); }} className="w-full rounded-lg bg-white/5 py-1.5 text-[9px] font-bold text-sky-500">清除全部筛选</button>}
         </div>
-        {!loaded ? <p className="py-4 text-center text-[10px] opacity-50">正在加载…</p> : expenses.length === 0 ? <p className="py-4 text-center text-[10px] opacity-50">暂无账单</p> : filteredExpenses.length === 0 ? <p className="py-4 text-center text-[10px] opacity-50">没有符合筛选条件的账单</p> : filteredGroups.map((group) => <div key={group.date} className="space-y-2"><div className="flex items-center gap-2 px-1"><span className="text-[10px] font-black">{group.date}</span><span className="h-px flex-1 bg-stone-300/30" /><span className="text-[9px] opacity-50">{group.expenses.length} 笔</span></div>{group.expenses.map((expense) => (
+        {!loaded ? <p className="py-4 text-center text-[10px] opacity-50">正在加载…</p> : expenses.length === 0 ? <p className="py-4 text-center text-[10px] opacity-50">暂无账单</p> : filteredExpenses.length === 0 ? <p className="py-4 text-center text-[10px] opacity-50">没有符合筛选条件的账单</p> : filteredGroups.map((group) => <div key={group.date} className="space-y-2"><div className="flex items-center gap-2 px-1"><span className="text-[10px] font-black">{group.date}</span><span className="h-px flex-1 bg-stone-300/30" /><span className="text-[9px] opacity-50">{group.expenses.length} 笔</span></div>{group.expenses.map((expense) => {
+          const repayable = getRepayableMemberIds(expense);
+          const completed = expense.settledMemberIds || [];
+          const settlementLabel = expense.settled ? '全部已结算' : completed.length > 0 ? `部分结算 ${completed.length}/${repayable.length}` : '待结算';
+          return (
           <div key={expense.id} className={`p-3 ${getCardStyle(theme.id, 'subcard')}`}>
-            <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1"><h5 className="font-black">{expense.title}</h5><span className={`rounded px-1.5 py-0.5 text-[8px] font-black ${expense.settled ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'}`}>{expense.settled ? '已结算' : '待结算'}</span></div><p className="mt-1 text-[9px] opacity-55">{expense.date} · {expense.category} · {expense.payerId} 支付 · 分账 {expense.splitMemberIds?.join('/')}</p></div><p className="font-black">{expense.amount.toLocaleString()} {CURRENCY_LABELS[expense.currency]}</p></div>
-            <div className="mt-2 flex justify-end gap-1"><button onClick={() => setExpenses((current) => current.map((item) => item.id === expense.id ? { ...item, settled: !expense.settled } : item))} className="rounded-lg bg-emerald-500/10 px-2 py-1 text-[9px] font-bold text-emerald-500">{expense.settled ? '设为未结算' : '标记已结算'}</button><button onClick={() => editExpense(expense)} className="p-1.5 text-sky-500"><Pencil className="h-3.5 w-3.5" /></button><button onClick={() => setConfirmDelete(expense)} className="p-1.5 text-red-500"><Trash2 className="h-3.5 w-3.5" /></button></div>
+            <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1"><h5 className="font-black">{expense.title}</h5><span className={`rounded px-1.5 py-0.5 text-[8px] font-black ${expense.settled ? 'bg-emerald-500/15 text-emerald-500' : completed.length > 0 ? 'bg-sky-500/15 text-sky-500' : 'bg-amber-500/15 text-amber-500'}`}>{settlementLabel}</span></div><p className="mt-1 text-[9px] opacity-55">{expense.date} · {expense.category} · {expense.payerId} 支付 · 分账 {expense.splitMemberIds?.join('/')}</p>{completed.length > 0 && <p className="mt-1 text-[9px] font-bold text-emerald-500">已结算成员：{completed.join(' / ')}</p>}</div><p className="font-black">{expense.amount.toLocaleString()} {CURRENCY_LABELS[expense.currency]}</p></div>
+            <div className="mt-2 flex justify-end gap-1"><button onClick={() => setExpenses((current) => current.map((item) => item.id === expense.id ? { ...item, settled: !expense.settled, settledMemberIds: expense.settled ? [] : getRepayableMemberIds(expense) } : item))} className="rounded-lg bg-emerald-500/10 px-2 py-1 text-[9px] font-bold text-emerald-500">{expense.settled ? '重置结算' : '全部结算'}</button><button onClick={() => editExpense(expense)} className="rounded-lg bg-sky-500/10 px-2 py-1 text-[9px] font-bold text-sky-500">结算设置</button><button onClick={() => editExpense(expense)} className="p-1.5 text-sky-500"><Pencil className="h-3.5 w-3.5" /></button><button onClick={() => setConfirmDelete(expense)} className="p-1.5 text-red-500"><Trash2 className="h-3.5 w-3.5" /></button></div>
           </div>
-        ))}</div>)}
+        )})}</div>)}
       </section>
 
       <AnimatePresence>

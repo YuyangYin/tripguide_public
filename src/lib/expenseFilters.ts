@@ -1,6 +1,6 @@
 import type { SharedExpense } from './expenseSettlement';
 
-export type ExpenseSettlementFilter = 'all' | 'settled' | 'unsettled';
+export type ExpenseSettlementFilter = 'all' | 'settled' | 'partial' | 'unsettled';
 
 export interface ExpenseFilters {
   category: string;
@@ -18,6 +18,7 @@ export function filterExpenses(expenses: SharedExpense[], filters: ExpenseFilter
     if (filters.category !== 'all' && expense.category !== filters.category) return false;
     if (filters.date !== 'all' && expense.date !== filters.date) return false;
     if (filters.settlement === 'settled' && !expense.settled) return false;
+    if (filters.settlement === 'partial' && (expense.settled || (expense.settledMemberIds || []).length === 0)) return false;
     if (filters.settlement === 'unsettled' && expense.settled) return false;
     return true;
   });

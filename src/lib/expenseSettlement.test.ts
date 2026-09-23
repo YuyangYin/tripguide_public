@@ -23,6 +23,11 @@ describe('expense settlement', () => {
     assert.deepEqual(balances.map((item) => item.balance), [0, 0, 0, 0]);
   });
 
+  it('removes only selected members from a partially settled expense', () => {
+    const balances = calculateMemberBalances([{ id: '1', title: '酒店', amount: 400, currency: 'CNY', category: '住宿', date: '2026-09-23', payerId: 'wyw', splitMemberIds: ['wyw', 'yyy', 'yh', 'lqw'], settledMemberIds: ['yyy'] }], rates);
+    assert.deepEqual(balances.map((item) => item.balance), [200, 0, -100, -100]);
+  });
+
   it('migrates old rows to four-person split', () => {
     const normalized = normalizeExpense({ id: '1', title: '旧账', amount: 1, currency: 'CNY', category: '其他', date: '2026-09-23', payer: 'wyw' });
     assert.equal(normalized.payerId, 'wyw');
@@ -38,5 +43,11 @@ describe('expense settlement', () => {
       { from: 'yh', to: 'wyw', amount: 100 },
       { from: 'lqw', to: 'wyw', amount: 100 },
     ]);
+  });
+
+  it('does not over-apply a final payment after an expense member is already settled', () => {
+    const balances = calculateMemberBalances([{ id: '1', title: '酒店', amount: 400, currency: 'CNY', category: '住宿', date: '2026-09-23', payerId: 'wyw', splitMemberIds: ['wyw', 'yyy', 'yh', 'lqw'], settledMemberIds: ['yyy'] }], rates);
+    const adjusted = applySettlementPayments(balances, [{ id: 'duplicate', from: 'yyy', to: 'wyw', amount: 100, date: '2026-09-23' }]);
+    assert.deepEqual(adjusted.map((item) => item.balance), [200, 0, -100, -100]);
   });
 });

@@ -12,6 +12,7 @@ export interface SharedExpense {
   date: string;
   payerId?: TravelMemberId;
   splitMemberIds?: TravelMemberId[];
+  settledMemberIds?: TravelMemberId[];
   settled?: boolean;
   payer?: string;
   payers?: { name: string }[];
@@ -43,13 +44,24 @@ export function normalizeExpense(expense: SharedExpense): SharedExpense {
   const legacyPayers = expense.payers?.map((payer) => payer.name.trim().toLowerCase()) || [];
   const payerId = expense.payerId || TRAVEL_MEMBER_IDS.find((id) => id === legacyPayer) || TRAVEL_MEMBER_IDS.find((id) => legacyPayers.includes(id)) || 'yyy';
   const splitMemberIds = expense.splitMemberIds?.filter((id) => TRAVEL_MEMBER_IDS.includes(id)) || TRAVEL_MEMBER_IDS;
+  const normalizedSplitMemberIds = splitMemberIds.length > 0 ? [...new Set(splitMemberIds)] : TRAVEL_MEMBER_IDS;
+  const repayableMemberIds = normalizedSplitMemberIds.filter((id) => id !== payerId);
+  const settledMemberIds = expense.settled
+    ? repayableMemberIds
+    : [...new Set((expense.settledMemberIds || []).filter((id) => repayableMemberIds.includes(id)))];
   return {
     ...expense,
     payerId,
-    splitMemberIds: splitMemberIds.length > 0 ? [...new Set(splitMemberIds)] : TRAVEL_MEMBER_IDS,
-    settled: Boolean(expense.settled),
+    splitMemberIds: normalizedSplitMemberIds,
+    settledMemberIds,
+    settled: repayableMemberIds.length === 0 ? Boolean(expense.settled) : settledMemberIds.length === repayableMemberIds.length,
   };
 }
+
+export const getRepayableMemberIds = (expense: SharedExpense) => {
+  const normalized = normalizeExpense(expense);
+  return (normalized.splitMemberIds || []).filter((id) => id !== normalized.payerId);
+};
 
 export function calculateMemberBalances(
   expenses: SharedExpense[],
@@ -58,8 +70,9 @@ export function calculateMemberBalances(
   const balances = new Map<TravelMemberId, MemberBalance>(
     TRAVEL_MEMBER_IDS.map((memberId) => [memberId, { memberId, paid: 0, owed: 0, balance: 0 }]),
   );
+  const settlementAdjustments = new Map<TravelMemberId, number>(TRAVEL_MEMBER_IDS.map((memberId) => [memberId, 0]));
 
-  expenses.filter((expense) => !expense.settled).forEach((rawExpense) => {
+  expenses.forEach((rawExpense) => {
     const expense = normalizeExpense(rawExpense);
     const rate = expense.currency === 'ISK' ? 0.051 : rates[expense.currency];
     const total = roundMoney(Math.abs(Number(expense.amount) || 0) * (rate || 1));
@@ -69,6 +82,11 @@ export function calculateMemberBalances(
     balances.get(expense.payerId)!.paid += total;
     const perPerson = total / splitMembers.length;
     splitMembers.forEach((memberId) => { balances.get(memberId)!.owed += perPerson; });
+    (expense.settledMemberIds || []).forEach((memberId) => {
+      if (memberId === expense.payerId || !splitMembers.includes(memberId)) return;
+      settlementAdjustments.set(memberId, (settlementAdjustments.get(memberId) || 0) + perPerson);
+      settlementAdjustments.set(expense.payerId!, (settlementAdjustments.get(expense.payerId!) || 0) - perPerson);
+    });
   });
 
   return TRAVEL_MEMBER_IDS.map((memberId) => {
@@ -77,7 +95,7 @@ export function calculateMemberBalances(
       memberId,
       paid: roundMoney(item.paid),
       owed: roundMoney(item.owed),
-      balance: roundMoney(item.paid - item.owed),
+      balance: roundMoney(item.paid - item.owed + (settlementAdjustments.get(memberId) || 0)),
     };
   });
 }
@@ -110,8 +128,9 @@ export function applySettlementPayments(
   payments.forEach((payment) => {
     const from = adjusted.get(payment.from);
     const to = adjusted.get(payment.to);
-    const amount = roundMoney(Math.abs(Number(payment.amount) || 0));
-    if (!from || !to || from.memberId === to.memberId || amount <= 0) return;
+    const requestedAmount = roundMoney(Math.abs(Number(payment.amount) || 0));
+    if (!from || !to || from.memberId === to.memberId || requestedAmount <= 0 || from.balance >= -0.009 || to.balance <= 0.009) return;
+    const amount = roundMoney(Math.min(requestedAmount, -from.balance, to.balance));
     from.balance = roundMoney(from.balance + amount);
     to.balance = roundMoney(to.balance - amount);
   });
