@@ -4,6 +4,7 @@ import { GuideItem, ThemeConfig } from '../types';
 import * as Icons from 'lucide-react';
 import { Camera, Sparkles, HelpCircle } from 'lucide-react';
 import TornEdge from './TornEdge';
+import WikiImage from './WikiImage';
 
 interface GuideCardProps {
   key?: React.Key | string | number;
@@ -13,6 +14,9 @@ interface GuideCardProps {
 }
 
 export default function GuideCard({ item, theme, onSelect }: GuideCardProps) {
+  const countryLabel: Record<string, string> = {
+    spain: '🇪🇸 西班牙', switzerland: '🇨🇭 瑞士', norway: '🇳🇴 挪威', sweden: '🇸🇪 瑞典', iceland: '🇮🇸 冰岛', both: '🌐 通用',
+  };
   // Dynamically map icon name to Lucide components
   const getIcon = (name: string) => {
     const named: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -92,7 +96,7 @@ export default function GuideCard({ item, theme, onSelect }: GuideCardProps) {
       whileHover={cardAnimation.hover}
       whileTap={cardAnimation.tap}
       className={`relative z-10 w-full text-left p-4 cursor-pointer select-none transition-all duration-300 flex ${
-        item.coverImage ? 'flex-row items-stretch gap-2 overflow-visible min-[390px]:gap-3' : 'flex-col justify-between'
+        item.coverImage || item.wikiTitle ? 'flex-row items-stretch gap-2 overflow-visible min-[390px]:gap-3' : 'flex-col justify-between'
       } ${theme.cardBgClass} ${
         isNewspaper 
           ? 'rounded-none border-l-2 border-r-2 border-[#1B1917] pt-6 pb-6' 
@@ -104,7 +108,7 @@ export default function GuideCard({ item, theme, onSelect }: GuideCardProps) {
     >
       {isNewspaper && <TornEdge position="top" bgColor="#F4ECE1" cardColor="#FCFBF7" />}
       {isNewspaper && <TornEdge position="bottom" bgColor="#F4ECE1" cardColor="#FCFBF7" />}
-      <div className={`space-y-2 ${item.coverImage ? 'flex-1 min-w-0' : 'w-full'}`}>
+      <div className={`space-y-2 ${item.coverImage || item.wikiTitle ? 'flex-1 min-w-0' : 'w-full'}`}>
         {/* Row 1: icon + title inline */}
         <div className="flex items-center gap-2.5 w-full">
           <div className={`p-2 shrink-0 ${isNewspaper ? 'rounded-none' : 'rounded-lg'} ${
@@ -149,7 +153,7 @@ export default function GuideCard({ item, theme, onSelect }: GuideCardProps) {
                 ? 'bg-[#FCFBF7] text-[#1B1917] font-serif'
                 : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
         }`}>
-          {item.country === 'iceland' ? '🇮🇸 冰岛' : item.country === 'norway' ? '🇳🇴 挪威' : '🌐 两国通用'}
+          {countryLabel[item.country] || '🌐 通用'}
         </span>
 
         {/* Item tags */}
@@ -177,14 +181,9 @@ export default function GuideCard({ item, theme, onSelect }: GuideCardProps) {
         ))}
       </div>
       </div>
-      {item.coverImage ? (
+      {item.coverImage || item.wikiTitle ? (
         <div className="w-[3.65rem] shrink-0 self-center overflow-visible pr-0.5 min-[390px]:w-[4.7rem] sm:w-[5.4rem]">
-          <img
-            src={item.coverImage}
-            alt=""
-            className="h-[4.2rem] w-[3.3rem] rotate-[7deg] object-cover rounded-lg border border-white/30 shadow-[3px_8px_16px_rgba(0,0,0,0.32)] min-[390px]:h-[5.15rem] min-[390px]:w-[4.1rem] sm:h-[5.75rem] sm:w-[4.6rem] sm:rotate-[8deg]"
-            style={{ transformOrigin: 'center center' }}
-          />
+          {item.wikiTitle ? <WikiImage title={item.wikiTitle} alt={item.title} className="h-[4.2rem] w-[3.3rem] rotate-[7deg] object-cover rounded-lg border border-white/30 shadow-[3px_8px_16px_rgba(0,0,0,0.32)] min-[390px]:h-[5.15rem] min-[390px]:w-[4.1rem] sm:h-[5.75rem] sm:w-[4.6rem] sm:rotate-[8deg]" /> : <img src={item.coverImage} alt="" className="h-[4.2rem] w-[3.3rem] rotate-[7deg] object-cover rounded-lg border border-white/30 shadow-[3px_8px_16px_rgba(0,0,0,0.32)] min-[390px]:h-[5.15rem] min-[390px]:w-[4.1rem] sm:h-[5.75rem] sm:w-[4.6rem] sm:rotate-[8deg]" />}
         </div>
       ) : null}
     </motion.button>

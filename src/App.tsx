@@ -1,12 +1,8 @@
 import { useState, useMemo, useEffect, Component, type ReactNode } from 'react';
 
 import { motion, AnimatePresence } from 'motion/react';
-import { THEME_CONFIGS, GUIDE_ITEMS } from './data/guideData';
-import { GUIDE_SPOT_ITEMS } from './data/guideSpots';
-import { GUIDE_SOURCES } from './data/guideSources';
-import { GUIDE_EXPERIENCE_ITEMS } from './data/guideExperiences';
-import { GUIDE_FOOD_ITEMS } from './data/guideFood';
-import { GUIDE_HISTORY_ITEMS } from './data/guideHistory';
+import { THEME_CONFIGS } from './data/guideData';
+import { TRIP_GUIDE_ITEMS } from './data/tripGuide';
 import { ThemeId, CountryId, CategoryId, GuideItem } from './types';
 import { getTabBarStyle, getTabItemStyle, getCardStyle, isDarkTheme } from './lib/themeStyles';
 
@@ -44,23 +40,21 @@ class HandbookErrorBoundary extends Component<{ children: ReactNode }, { error: 
 
 const COUNTRIES_OPTIONS = [
   { id: 'all', label: '全部大区', emoji: '🌍' },
-  { id: 'iceland', label: '冰岛', emoji: '🇮🇸' },
-  { id: 'norway', label: '挪威', emoji: '🇳🇴' }
+  { id: 'spain', label: '西班牙', emoji: '🇪🇸' },
+  { id: 'switzerland', label: '瑞士', emoji: '🇨🇭' },
+  { id: 'norway', label: '挪威', emoji: '🇳🇴' },
+  { id: 'sweden', label: '瑞典', emoji: '🇸🇪' }
 ] as const;
 
 const HANDBOOK_CATEGORIES = [
   { id: 'all', name: '全部大类', emoji: '🎯' },
-  { id: 'emergency', name: '突发应急', emoji: '🚨' },
   { id: 'parking', name: '停车缴费', emoji: '🅿️' },
   { id: 'traffic', name: '路况法规', emoji: '🧭' },
   { id: 'grocery', name: '超市和免税店', emoji: '🛒' },
   { id: 'activity', name: '游玩避坑', emoji: '✨' },
-  { id: 'experience', name: '神奇体验', emoji: '🪄' },
   { id: 'food', name: '吃好喝好', emoji: '🍽️' },
   { id: 'aurora', name: '极光猎人', emoji: '🌌' },
-  { id: 'photo', name: '拍摄机位', emoji: '📷' },
-  { id: 'drone', name: '无人机法则', emoji: '🛸' },
-  { id: 'history', name: '人文历史', emoji: '📖' }
+  { id: 'photo', name: '景点与机位', emoji: '📷' },
 ];
 
 const getSystemTheme = (): ThemeId => {
@@ -140,11 +134,7 @@ export default function App() {
     return () => mediaQuery.removeEventListener('change', handleSystemChange);
   }, []);
 
-  const handbookItems = useMemo<GuideItem[]>(
-    () => [...GUIDE_ITEMS, ...GUIDE_EXPERIENCE_ITEMS, ...GUIDE_FOOD_ITEMS, ...GUIDE_SPOT_ITEMS, ...GUIDE_HISTORY_ITEMS]
-      .map((item) => ({ ...item, sources: item.sources || GUIDE_SOURCES[item.id] })),
-    []
-  );
+  const handbookItems = useMemo<GuideItem[]>(() => TRIP_GUIDE_ITEMS, []);
 
   // Filtered handbook items based on vertical partition selection (country) & category & search query
   const filteredItems = useMemo(() => {
@@ -190,14 +180,14 @@ export default function App() {
             <div>
               <h1 className={`text-xl font-black tracking-tight ${theme.fontHeading}`}>
                 {activeTab === 'itinerary' && '欧洲五国行程'}
-                {activeTab === 'handbook' && '北欧自驾万能手册'}
-                {activeTab === 'toolbox' && '北欧自驾工具箱'}
+                {activeTab === 'handbook' && '欧洲四国旅行手册'}
+                {activeTab === 'toolbox' && '欧洲旅行工具箱'}
                 {activeTab === 'folder' && '票根夹'}
               </h1>
               <p className="text-xs mt-1 leading-snug opacity-75 text-pretty">
                 {activeTab === 'itinerary' && '西班牙 · 瑞士 · 荷兰 · 挪威 · 瑞典 14 天 · 四人同行。'}
-                {activeTab === 'handbook' && '冰岛与挪威的最全路况应急、超市选购与航拍红线。'}
-                {activeTab === 'toolbox' && '支持多国汇率记账换算，融合北欧无人机飞行气流风控仪。'}
+                {activeTab === 'handbook' && '西班牙、瑞士、挪威与瑞典的交通、景点、餐饮、购物与应急。'}
+                {activeTab === 'toolbox' && '四人自动分账、账单导入、紧急救援与无人机风控。'}
                 {activeTab === 'folder' && '支持私有云端存储、上传本地文件或预约单截图。'}
               </p>
             </div>
@@ -320,7 +310,7 @@ export default function App() {
                           type="text"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder={`在${selectedCountry === 'all' ? '全部' : selectedCountry === 'iceland' ? '冰岛' : '挪威'}指南中搜索...`}
+                          placeholder={`在${selectedCountry === 'all' ? '全部' : COUNTRIES_OPTIONS.find((country) => country.id === selectedCountry)?.label || ''}指南中搜索...`}
                           className={`w-full pl-9 pr-8 py-2 text-[11px] focus:outline-none transition-all duration-300 border ${
                             isCyber
                               ? 'bg-black/60 border-[#00F5FF]/30 text-white placeholder-stone-600 focus:border-[#00F5FF]'

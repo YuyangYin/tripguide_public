@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import TornEdge from './TornEdge';
 import StackedGallery from './StackedGallery';
 import { CopyButton } from './CopyButton';
+import WikiImage from './WikiImage';
 
 interface DetailDrawerProps {
   item: GuideItem | null;
@@ -105,6 +106,7 @@ export default function DetailDrawer({ item, onClose, theme }: DetailDrawerProps
         </div>
 
         <div className="p-6 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] space-y-6 flex-1">
+          {item.wikiTitle && <WikiImage title={item.wikiTitle} alt={item.title} className="h-52 w-full rounded-2xl object-cover" />}
           {item.gallery && item.gallery.length > 0 && (
             <StackedGallery images={item.gallery} title={item.title} />
           )}

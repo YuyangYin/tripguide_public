@@ -8,6 +8,9 @@ import {
   Car, 
   Hotel, 
   Coffee, 
+  Utensils,
+  ShoppingBag,
+  Plus,
   Info, 
   Navigation, 
   CheckCircle, 
@@ -22,7 +25,9 @@ import {
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { useSharedTable, useSharedValue } from '../lib/useSharedTable';
-import { ITINERARY_2026 } from '../data/itinerary2026';
+import { enrichItineraryDay, ITINERARY_2026 } from '../data/itinerary2026';
+import { getTripSpot, TripSpot } from '../data/tripSpots';
+import TripSpotModal from './TripSpotModal';
 
 interface ItineraryTimelineProps {
   theme: ThemeConfig;
@@ -42,6 +47,9 @@ export interface ItineraryDay {
   drivingEstimate: string;
   hotel: string;
   breakfast: string;
+  dining?: string[];
+  shopping?: string[];
+  alternativeSights?: string[];
   tips: string;
   highlights: string;
 }
@@ -284,10 +292,17 @@ const isDayCompleted = (dateStr: string, currentDate: Date): boolean => {
 
 export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
   const [expandedDay, setExpandedDay] = useState<string | null>('day-2'); // default expand Day 2 as it starts the main iceland drive
-  const [days, setDays, , daysError] = useSharedTable<ItineraryDay>('itinerary', 'polar_itinerary_v2', ITINERARY_2026);
+  const [days, setDays, daysLoaded, daysError] = useSharedTable<ItineraryDay>('itinerary', 'polar_itinerary_v2', ITINERARY_2026);
   const [checkedDays, setCheckedDays, , checkedDaysError] = useSharedValue<Record<string, boolean>>('checked_days', 'polar_checked_days', {});
   const [editingDay, setEditingDay] = useState<ItineraryDay | null>(null);
+  const [activeSpot, setActiveSpot] = useState<TripSpot | null>(null);
   const orderedDays = useMemo(() => [...days].sort((a, b) => a.dayNum - b.dayNum), [days]);
+
+  useEffect(() => {
+    if (!daysLoaded) return;
+    const needsMigration = days.some((day) => !day.dining || !day.shopping || !day.alternativeSights);
+    if (needsMigration) setDays((current) => current.map(enrichItineraryDay));
+  }, [days, daysLoaded, setDays]);
 
   const currentDate = useMemo(() => new Date(), []);
 
@@ -309,6 +324,14 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
     if (!editingDay) return;
     setDays((current) => current.map((day) => day.id === editingDay.id ? editingDay : day));
     setEditingDay(null);
+  };
+
+  const promoteAlternative = (day: ItineraryDay, sight: string) => {
+    setDays((current) => current.map((item) => item.id === day.id ? {
+      ...item,
+      sights: item.sights.includes(sight) ? item.sights : [...item.sights, sight],
+      alternativeSights: (item.alternativeSights || []).filter((name) => name !== sight),
+    } : item));
   };
 
   return (
@@ -462,10 +485,13 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
                               <span>游览地标景点</span>
                             </div>
                             <div className="space-y-1.5">
-                              {day.sights.map((sight, idx) => (
+                              {day.sights.map((sight, idx) => {
+                                const spot = getTripSpot(sight);
+                                return (
                                 <div key={idx} className="flex items-center justify-between gap-2 py-1 px-2.5 rounded-lg bg-stone-50/80 dark:bg-stone-900/60 border border-stone-100/50 dark:border-stone-800/30">
                                   <span className="font-bold text-xs text-stone-800 dark:text-stone-200">{sight}</span>
                                   <div className="flex items-center gap-1.5 shrink-0">
+                                    {spot && <button type="button" onClick={(event) => { event.stopPropagation(); setActiveSpot(spot); }} className="rounded bg-sky-500/10 px-1.5 py-1 text-[9px] font-black text-sky-500">详情</button>}
                                     <CopyButton 
                                       textToCopy={sight} 
                                       label="" 
@@ -487,7 +513,7 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
                                     </a>
                                   </div>
                                 </div>
-                              ))}
+                              )})}
                             </div>
                           </div>
 
@@ -573,14 +599,25 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
                               )}
                             </div>
 
-                            {/* Breakfast Row */}
-                            <div className="flex items-center gap-2 bg-stone-50/50 dark:bg-stone-900/40 p-2 rounded-lg border border-stone-100/30 dark:border-stone-800/20">
-                              <Coffee className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-                              <div>
-                                <span className="text-[10px] text-stone-400 block uppercase font-bold leading-none mb-0.5">早餐安排</span>
-                                <span className="font-bold text-xs text-stone-800 dark:text-stone-100">{day.breakfast}</span>
+                            {/* Dining Row */}
+                            <div className="flex items-start gap-2 bg-stone-50/50 dark:bg-stone-900/40 p-2 rounded-lg border border-stone-100/30 dark:border-stone-800/20">
+                              <Utensils className="w-3.5 h-3.5 text-orange-400 shrink-0 mt-0.5" />
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[10px] text-stone-400 block uppercase font-bold leading-none mb-1">餐饮安排</span>
+                                <div className="space-y-1">{(day.dining?.length ? day.dining : [day.breakfast]).map((place) => <a key={place} href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded bg-orange-500/5 px-2 py-1 text-xs font-bold hover:text-orange-500"><span>{place}</span><ExternalLink className="h-3 w-3 shrink-0" /></a>)}</div>
                               </div>
                             </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div className="rounded-xl border border-stone-100 bg-white/40 p-3 dark:border-stone-800/60 dark:bg-stone-950/20">
+                            <h4 className="flex items-center gap-1.5 text-[11px] font-bold text-stone-400"><Compass className="h-3.5 w-3.5 text-violet-500" />备选景点</h4>
+                            <div className="mt-2 space-y-1.5">{(day.alternativeSights || []).length === 0 ? <p className="text-[10px] opacity-45">暂无备选，可点编辑添加</p> : day.alternativeSights!.map((sight) => { const spot = getTripSpot(sight); return <div key={sight} className="flex items-center gap-1 rounded-lg bg-violet-500/5 px-2 py-1.5"><button type="button" onClick={() => spot && setActiveSpot(spot)} className="min-w-0 flex-1 truncate text-left text-[10px] font-bold">{sight}</button><button type="button" onClick={() => promoteAlternative(day, sight)} className="flex items-center gap-0.5 rounded bg-violet-500/15 px-1.5 py-1 text-[8px] font-black text-violet-500"><Plus className="h-2.5 w-2.5" />加入</button></div> })}</div>
+                          </div>
+                          <div className="rounded-xl border border-stone-100 bg-white/40 p-3 dark:border-stone-800/60 dark:bg-stone-950/20">
+                            <h4 className="flex items-center gap-1.5 text-[11px] font-bold text-stone-400"><ShoppingBag className="h-3.5 w-3.5 text-pink-500" />购物推荐</h4>
+                            <div className="mt-2 space-y-1.5">{(day.shopping || []).length === 0 ? <p className="text-[10px] opacity-45">暂无购物点，可点编辑添加</p> : day.shopping!.map((place) => <a key={place} href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg bg-pink-500/5 px-2 py-1.5 text-[10px] font-bold hover:text-pink-500"><span>{place}</span><ExternalLink className="h-3 w-3" /></a>)}</div>
                           </div>
                         </div>
 
@@ -613,7 +650,7 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
               </div>
               {([
                 ['date', '日期（MM/DD）'], ['route', '路线'], ['schedule', '日程安排'], ['transport', '交通方式'],
-                ['drivingEstimate', '车程估算'], ['hotel', '酒店'], ['breakfast', '早餐'], ['tips', '提示'], ['highlights', '亮点'],
+                ['drivingEstimate', '车程估算'], ['hotel', '酒店'], ['breakfast', '餐饮安排（兼容旧字段）'], ['tips', '提示'], ['highlights', '亮点'],
               ] as const).map(([field, label]) => (
                 <label key={field} className="block text-[10px] font-bold text-white/65">
                   {label}
@@ -628,11 +665,16 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
                   onChange={(event) => setEditingDay({ ...editingDay, sights: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })}
                   className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white outline-none focus:border-sky-400" />
               </label>
+              <label className="block text-[10px] font-bold text-white/65">备选景点（每行一个）<textarea rows={4} value={(editingDay.alternativeSights || []).join('\n')} onChange={(event) => setEditingDay({ ...editingDay, alternativeSights: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })} className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white" /></label>
+              <label className="block text-[10px] font-bold text-white/65">餐饮安排（每行一家，可跳转地图）<textarea rows={3} value={(editingDay.dining || [editingDay.breakfast]).join('\n')} onChange={(event) => setEditingDay({ ...editingDay, dining: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean), breakfast: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean).join('；') })} className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white" /></label>
+              <label className="block text-[10px] font-bold text-white/65">购物推荐（每行一个，可跳转地图）<textarea rows={3} value={(editingDay.shopping || []).join('\n')} onChange={(event) => setEditingDay({ ...editingDay, shopping: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })} className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-white" /></label>
               <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-400 py-2.5 text-xs font-black text-slate-950"><Save className="h-4 w-4" />保存并同步</button>
             </motion.form>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {activeSpot && <TripSpotModal spot={activeSpot} onClose={() => setActiveSpot(null)} />}
 
     </div>
   );

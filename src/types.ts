@@ -1,7 +1,7 @@
 export type ThemeId = 'cozy' | 'aurora' | 'cyber' | 'glacial' | 'glassy' | 'ivory' | 'copenhagen' | 'newspaper' | 'frosted' | 'midnight';
 
-export type CountryId = 'iceland' | 'norway';
-export type GuideCountryId = CountryId | 'both';
+export type CountryId = 'spain' | 'switzerland' | 'norway' | 'sweden';
+export type GuideCountryId = CountryId | 'iceland' | 'both';
 
 export type CategoryId = 'emergency' | 'parking' | 'traffic' | 'grocery' | 'activity' | 'experience' | 'food' | 'aurora' | 'photo' | 'drone' | 'history';
 
@@ -31,6 +31,7 @@ export interface GuideItem {
   funFact?: string; // An interesting trivia to add "fun" to the guide
   quickChecklist?: string[]; // A list of items that the user can prepare/bring
   coverImage?: string;
+  wikiTitle?: string;
   gallery?: string[];
   mapQuery?: string;
   coordinates?: string;

@@ -1,6 +1,6 @@
 import type { ItineraryDay } from '../components/ItineraryTimeline';
 
-export const ITINERARY_2026: ItineraryDay[] = [
+const BASE_ITINERARY_2026: ItineraryDay[] = [
   { id:'day-1', dayNum:1, date:'9/24', route:'香港 → 北京', region:'home', regionLabel:'中国', regionEmoji:'🇨🇳', sights:['香港国际机场','北京首都国际机场'], schedule:'从香港出发，乘国航 CA105（17:45–21:15）飞往北京；抵达后在机场酒店休息，准备次日凌晨转机。', transport:'Air China CA105 · HKG–PEK 17:45–21:15', drivingEstimate:'国际航班；次日 02:50 继续出发', hotel:'北京机场酒店 / 飞机上', breakfast:'机场酒店餐厅', tips:'随身保管护照、签证及四人的联程机票预订单。', highlights:'启程前往欧洲' },
   { id:'day-2', dayNum:2, date:'9/25', route:'北京 → 巴塞罗那', region:'spain', regionLabel:'西班牙', regionEmoji:'🇪🇸', sights:['El Born 老城','圣玛利亚德尔马教堂','圣卡特琳娜市场','巴塞罗那主教座堂','亲吻墙','Turó de la Rovira 焦糖山'], schedule:'CA933 02:50–08:15 抵达巴塞罗那。寄存行李后逛 Born 老城，14:00 在 L’Arrosseria Xàtiva 午餐，下午入住 Diagonal Mar 民宿；19:30 看日落，22:00 Paco Meralgo 晚餐。', transport:'Air China CA933 · PEK–BCN 02:50–08:15；市内地铁与步行', drivingEstimate:'机场至市区约 1 小时；L4 末班约 00:00', hotel:'Barcelona Apartment · Carrer Josep Pla 27, 08019 Barcelona（9/25–9/27）', breakfast:'午餐 L’Arrosseria Xàtiva；晚餐 Paco Meralgo', tips:'Jon Cake 12:30 开门，巴斯克蛋糕下午可能售罄。提前订好行李寄存点。', highlights:'老城漫步与焦糖山日落' },
   { id:'day-3', dayNum:3, date:'9/26', route:'巴塞罗那', region:'spain', regionLabel:'西班牙', regionEmoji:'🇪🇸', sights:['Gràcia','圣家堂','兰布拉大街','Passeig de Gràcia','Espigó del Gas 海滩'], schedule:'上午早餐和 Gràcia / 购物，11:45–13:15 参观圣家堂；13:30 海鲜午餐，下午逛兰布拉大街、Passeig de Gràcia 和商店；19:30 Carnal Steak House，22:00 海滩看烟花。', transport:'地铁 / 步行 / 晚间可打车', drivingEstimate:'圣家堂需 11:30 前抵达并预留安检时间', hotel:'Barcelona Apartment · Carrer Josep Pla 27, 08019 Barcelona', breakfast:'午餐 O’Retorno 或 Lluritu；晚餐 Carnal Steak House（已预约）', tips:'圣家堂 11:45 入场不可迟到。', highlights:'圣家堂与海滩烟花' },
@@ -16,3 +16,32 @@ export const ITINERARY_2026: ItineraryDay[] = [
   { id:'day-13', dayNum:13, date:'10/6', route:'斯德哥尔摩 → 北京', region:'sweden', regionLabel:'瑞典', regionEmoji:'🇸🇪', sights:['Ropsten 80 路轮渡','斯德哥尔摩市区'], schedule:'上午前往 Ropsten 乘 80 路轮渡，IKEA 午餐，下午市区购物；16:00 前往机场，CA932 19:10 起飞，次日 09:40 抵达北京。', transport:'Air China CA932 · ARN–PEK 19:10–09:40（+1）', drivingEstimate:'80 路轮渡约 70 分钟；16:00 前往机场', hotel:'飞机上', breakfast:'IKEA 午餐', tips:'长途航班约 8 小时，随身行李保留洗漱和保暖用品。', highlights:'轮渡游览与返程启航' },
   { id:'day-14', dayNum:14, date:'10/7', route:'北京 → 香港', region:'home', regionLabel:'返程', regionEmoji:'🇭🇰', sights:['北京首都国际机场','香港国际机场'], schedule:'09:40 抵达北京后转机，CA101 12:25–16:40 飞往香港，抵达后回家。', transport:'Air China CA101 · PEK–HKG 12:25–16:40', drivingEstimate:'北京转机约 2 小时 45 分钟', hotel:'回家', breakfast:'机上餐食', tips:'在北京转机时再次确认登机口和托运行李直挂状态。', highlights:'平安抵港' },
 ];
+
+const DAY_EXTRAS: Record<string, Pick<ItineraryDay, 'alternativeSights' | 'dining' | 'shopping'>> = {
+  'day-1': { alternativeSights: [], dining: ['北京机场餐厅'], shopping: ['北京首都机场免税店'] },
+  'day-2': { alternativeSights: ['巴塞罗那哥特区', '桂尔公园'], dining: ["L'Arrosseria Xàtiva Sant Antoni", 'Paco Meralgo Barcelona', 'Nomad Coffee Passatge Sert'], shopping: ['El Born 独立设计店', 'Santa Caterina Market Barcelona', 'La Chinata Barcelona'] },
+  'day-3': { alternativeSights: ['桂尔公园', '蒙锥克山'], dining: ["O'Retorno Barcelona", 'Lluritu Barcelona', 'Carnal Steak House Barcelona'], shopping: ['Passeig de Gràcia Barcelona', 'FC Barcelona Official Store', 'Zara Passeig de Gràcia'] },
+  'day-4': { alternativeSights: ['Lauterbrunnen', '伯尔尼老城'], dining: ['Coop Supermarkt Bern Bahnhof'], shopping: ['Bern Old Town souvenir shops', 'Coop Bern Bahnhof'] },
+  'day-5': { alternativeSights: ['伯尔尼老城'], dining: ['Castell Amsterdam', 'Cannibale Royale Handboogstraat'], shopping: ['Kalverstraat Amsterdam', 'De Bijenkorf Amsterdam'] },
+  'day-6': { alternativeSights: ['Olden Lake', 'Lovatnet'], dining: ['Gullgruven Senter Bergen', 'REMA 1000 Stryn'], shopping: ['REMA 1000 Stryn', 'Joker Hornindal'] },
+  'day-7': { alternativeSights: ['Loen Skylift', 'Geiranger Skywalk Dalsnibba'], dining: ['Stryn Kaffebar & Vertshus', 'REMA 1000 Stryn'], shopping: ['Stryn Torg', 'Joker Hellesylt'] },
+  'day-8': { alternativeSights: ['Flåm', 'Tvindefossen'], dining: ['Lærdal Ferie- og Fritidspark restaurant', 'Voss sentrum cafe'], shopping: ['Flåm Store', 'Bryggen Bergen souvenir shops'] },
+  'day-9': { alternativeSights: ['Kabelvåg 老城', 'Fløya Svolvær viewpoint'], dining: ['Bacalao Svolvær', 'Henningsvær Lysstøperi Cafe'], shopping: ['REMA 1000 Svolvær', 'Lofoten Wool Henningsvær'] },
+  'day-10': { alternativeSights: ['Ramberg Beach', 'Nusfjord'], dining: ['Anitas Sjømat Sakrisøy', 'Bringen Kaffebar Reine'], shopping: ['Coop Prix Reine', 'REMA 1000 Leknes'] },
+  'day-11': { alternativeSights: ['Henningsvær 渔村', 'Svolværgeita viewpoint'], dining: ['Svolvær Bakeri', 'Oslo Airport restaurants'], shopping: ['Lofoten Glass AS Kabelvåg', 'Svolvær souvenir shops'] },
+  'day-12': { alternativeSights: ['瓦萨博物馆', '斯德哥尔摩市政厅'], dining: ['Tim Wendelboe Oslo', 'Stockholm dinner Södermalm'], shopping: ['NK Stockholm', 'Svenskt Tenn Stockholm', 'Gamla Stan souvenir shops'] },
+  'day-13': { alternativeSights: ['瓦萨博物馆', '斯德哥尔摩市政厅'], dining: ['IKEA Stockholm restaurant'], shopping: ['IKEA Stockholm', 'Åhléns City Stockholm'] },
+  'day-14': { alternativeSights: [], dining: ['北京首都机场餐饮'], shopping: ['北京首都机场免税店'] },
+};
+
+export function enrichItineraryDay(day: ItineraryDay): ItineraryDay {
+  const extras = DAY_EXTRAS[day.id] || { alternativeSights: [], dining: [day.breakfast], shopping: [] };
+  return {
+    ...day,
+    alternativeSights: day.alternativeSights || extras.alternativeSights,
+    dining: day.dining || extras.dining,
+    shopping: day.shopping || extras.shopping,
+  };
+}
+
+export const ITINERARY_2026: ItineraryDay[] = BASE_ITINERARY_2026.map(enrichItineraryDay);

@@ -2,11 +2,13 @@ import { FormEvent, ReactNode, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Loader2, LogIn, LogOut, ShieldCheck } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { TRAVEL_MEMBERS, getTravelMemberByEmail, TravelMemberId } from '../lib/travelMembers';
+import { TravelMemberProvider } from './TravelMemberContext';
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState('');
+  const [memberId, setMemberId] = useState<TravelMemberId>('yyy');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -27,9 +29,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     event.preventDefault();
     setSubmitting(true);
     setError('');
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const member = TRAVEL_MEMBERS.find((item) => item.id === memberId)!;
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: member.email, password });
     if (signInError) {
-      setError(signInError.message === 'Invalid login credentials' ? '邮箱或密码不正确' : signInError.message);
+      setError(signInError.message === 'Invalid login credentials' ? '成员 ID 或密码不正确' : signInError.message);
     }
     setSubmitting(false);
   };
@@ -55,10 +58,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <form onSubmit={signIn} className="w-full max-w-sm rounded-[2rem] border border-white/15 bg-white/10 p-7 shadow-2xl backdrop-blur-2xl">
           <div className="mb-6 flex items-center gap-3">
             <div className="rounded-2xl bg-cyan-400/15 p-3 text-cyan-300"><ShieldCheck className="h-6 w-6" /></div>
-            <div><h1 className="text-xl font-black">北欧同行空间</h1><p className="mt-0.5 text-xs text-white/55">登录后与旅伴同步行程、账单和票据</p></div>
+            <div><h1 className="text-xl font-black">欧洲同行空间</h1><p className="mt-0.5 text-xs text-white/55">使用成员 ID 登录并同步行程、账单和票据</p></div>
           </div>
-          <label htmlFor="trip-email" className="mb-1.5 block text-xs font-bold text-white/70">邮箱</label>
-          <input id="trip-email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mb-4 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-cyan-300" />
+          <label htmlFor="trip-member" className="mb-1.5 block text-xs font-bold text-white/70">成员 ID</label>
+          <select id="trip-member" value={memberId} onChange={(event) => setMemberId(event.target.value as TravelMemberId)} className="mb-4 w-full rounded-xl border border-white/15 bg-slate-950/80 px-3 py-2.5 text-sm outline-none focus:border-cyan-300">
+            {TRAVEL_MEMBERS.map((member) => <option key={member.id} value={member.id}>{member.label}</option>)}
+          </select>
           <label htmlFor="trip-password" className="mb-1.5 block text-xs font-bold text-white/70">密码</label>
           <input id="trip-password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-cyan-300" />
           {error && <p role="alert" className="mt-3 rounded-lg bg-red-500/15 px-3 py-2 text-xs text-red-200">{error}</p>}
@@ -70,11 +75,23 @@ export function AuthGate({ children }: { children: ReactNode }) {
     );
   }
 
+  const currentMember = getTravelMemberByEmail(session.user.email);
+  if (!currentMember) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-950 px-6 text-white">
+        <div className="max-w-sm rounded-3xl border border-amber-400/30 bg-white/10 p-6 text-center">
+          <h1 className="font-black">此账号未绑定旅行成员</h1>
+          <button onClick={() => supabase.auth.signOut()} className="mt-4 rounded-xl bg-white/10 px-4 py-2 text-xs font-bold">退出并切换成员</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen">
-      {children}
-      <button onClick={() => supabase.auth.signOut()} title={`退出 ${session.user.email || ''}`} className="fixed right-3 top-3 z-[200] flex items-center gap-1.5 rounded-full border border-white/20 bg-black/45 px-3 py-1.5 text-[10px] font-bold text-white shadow-lg backdrop-blur-xl">
-        <LogOut className="h-3 w-3" /> 退出
+      <TravelMemberProvider member={currentMember}>{children}</TravelMemberProvider>
+      <button onClick={() => supabase.auth.signOut()} title={`退出 ${currentMember.label}`} className="fixed right-3 top-3 z-[200] flex items-center gap-1.5 rounded-full border border-white/20 bg-black/45 px-3 py-1.5 text-[10px] font-bold text-white shadow-lg backdrop-blur-xl">
+        <LogOut className="h-3 w-3" /> {currentMember.label} · 退出
       </button>
     </div>
   );
