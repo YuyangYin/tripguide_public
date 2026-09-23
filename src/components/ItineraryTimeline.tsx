@@ -30,6 +30,7 @@ import { getTripSpot, TripSpot } from '../data/tripSpots';
 import TripSpotModal from './TripSpotModal';
 import ScreenshotPlaceImporter from './ScreenshotPlaceImporter';
 import XiaohongshuSearchPanel from './XiaohongshuSearchPanel';
+import BaggageAllowancePanel from './BaggageAllowancePanel';
 import type { TravelScreenshotResult } from '../lib/parseTravelScreenshot';
 
 interface ItineraryTimelineProps {
@@ -357,6 +358,8 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
 
       {/* TIMELINE LIST CONTAINER */}
       <div className="flex-1 overflow-y-auto pr-1 relative px-1 space-y-4 pb-24 select-none scrollbar-none">
+
+        <BaggageAllowancePanel />
 
         {orderedDays.map((day) => {
           const isExpanded = expandedDay === day.id;
