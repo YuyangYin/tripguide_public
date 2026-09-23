@@ -32,6 +32,7 @@ import { extractDocumentText } from '../lib/extractDocumentText';
 import { hasAnyFlightField, isCompleteFlightParse, parseFlightText, sortFlightsByDeparture } from '../lib/parseFlightText';
 import { expandHotelNights, hasAnyHotelField, isCompleteHotelParse, parseHotelText } from '../lib/parseHotelText';
 import { deleteVoucherFile, getVoucherUrl, uploadVoucherFile } from '../lib/voucherStorage';
+import BaggageAllowancePanel from './BaggageAllowancePanel';
 
 const getCityFromAddress = (address: string, hotelName: string) => {
   const cities = ['雷克雅未克', '罗弗敦', '维克', '赫拉', '奥斯陆', '特罗姆瑟', 'Hella', 'Vík', 'Reykjavík', 'Lofoten', 'Oslo', 'Tromsø', 'Svolvær', 'Henningsvær', 'Keflavík'];
@@ -1111,6 +1112,8 @@ export default function VoucherFolder({ theme, onPreviewVoucher }: VoucherFolder
       {/* RENDER TAB 2: 机票航线 (Flight Ticket Cards & Interactive Boarding Passes) */}
       {activeSubTab === 'flight' && (
         <div className="space-y-4">
+          <BaggageAllowancePanel />
+
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1.5">
               <Plane className={`w-4 h-4 ${isCyber ? 'text-[#00F5FF]' : 'text-purple-400'}`} />

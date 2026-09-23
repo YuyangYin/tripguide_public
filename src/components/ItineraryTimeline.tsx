@@ -28,9 +28,8 @@ import { useSharedTable, useSharedValue } from '../lib/useSharedTable';
 import { enrichItineraryDay, ITINERARY_2026 } from '../data/itinerary2026';
 import { getTripSpot, TripSpot } from '../data/tripSpots';
 import TripSpotModal from './TripSpotModal';
-import ScreenshotPlaceImporter from './ScreenshotPlaceImporter';
+import ScreenshotPlaceImporter, { type ScreenshotImportMode } from './ScreenshotPlaceImporter';
 import XiaohongshuSearchPanel from './XiaohongshuSearchPanel';
-import BaggageAllowancePanel from './BaggageAllowancePanel';
 import type { TravelScreenshotResult } from '../lib/parseTravelScreenshot';
 
 interface ItineraryTimelineProps {
@@ -334,13 +333,13 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
     setEditingDay(null);
   };
 
-  const applyScreenshotImport = (result: TravelScreenshotResult) => {
+  const applyScreenshotImport = (result: TravelScreenshotResult, mode: ScreenshotImportMode) => {
     setEditingDay((current) => current ? {
       ...current,
-      sights: mergeUnique(current.sights, result.sights),
-      alternativeSights: mergeUnique(current.alternativeSights, result.alternativeSights),
-      dining: mergeUnique(current.dining || [current.breakfast], result.dining),
-      shopping: mergeUnique(current.shopping, result.shopping),
+      sights: mode === 'replace' && result.sights.length ? result.sights : mergeUnique(current.sights, result.sights),
+      alternativeSights: mode === 'replace' && result.alternativeSights.length ? result.alternativeSights : mergeUnique(current.alternativeSights, result.alternativeSights),
+      dining: mode === 'replace' && result.dining.length ? result.dining : mergeUnique(current.dining || [current.breakfast], result.dining),
+      shopping: mode === 'replace' && result.shopping.length ? result.shopping : mergeUnique(current.shopping, result.shopping),
     } : current);
   };
 
@@ -358,8 +357,6 @@ export default function ItineraryTimeline({ theme }: ItineraryTimelineProps) {
 
       {/* TIMELINE LIST CONTAINER */}
       <div className="flex-1 overflow-y-auto pr-1 relative px-1 space-y-4 pb-24 select-none scrollbar-none">
-
-        <BaggageAllowancePanel />
 
         {orderedDays.map((day) => {
           const isExpanded = expandedDay === day.id;
