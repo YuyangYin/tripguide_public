@@ -7,6 +7,7 @@ const s = (title: string, url: string): GuideSource => ({ title, url });
 
 const SOURCE_ORIGIN_LABELS: Record<string, string> = {
   'xiaohongshu.com': '小红书',
+  'google.com': 'Google Maps',
   'wikipedia.org': 'Wikipedia / Wikimedia',
   'barcelona.cat': '巴塞罗那市政府官网',
   'barcelonaturisme.com': '巴塞罗那旅游局官网',

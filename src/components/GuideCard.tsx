@@ -153,7 +153,7 @@ export default function GuideCard({ item, theme, onSelect }: GuideCardProps) {
                 ? 'bg-[#FCFBF7] text-[#1B1917] font-serif'
                 : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
         }`}>
-          {countryLabel[item.country] || '🌐 通用'}
+          {countryLabel[item.country] || `${item.countryEmoji || '📍'} ${item.countryLabel || String(item.country).replace(/^custom:/, '')}`}
         </span>
 
         {/* Item tags */}

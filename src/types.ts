@@ -1,9 +1,9 @@
 export type ThemeId = 'cozy' | 'aurora' | 'cyber' | 'glacial' | 'glassy' | 'ivory' | 'copenhagen' | 'newspaper' | 'frosted' | 'midnight';
 
 export type CountryId = 'spain' | 'switzerland' | 'netherlands' | 'norway' | 'sweden';
-export type GuideCountryId = CountryId | 'iceland' | 'both';
+export type GuideCountryId = CountryId | 'iceland' | 'both' | `custom:${string}`;
 
-export type CategoryId = 'emergency' | 'parking' | 'traffic' | 'grocery' | 'activity' | 'experience' | 'food' | 'aurora' | 'photo' | 'drone' | 'history';
+export type CategoryId = 'emergency' | 'parking' | 'traffic' | 'grocery' | 'stay' | 'activity' | 'experience' | 'food' | 'aurora' | 'photo' | 'drone' | 'history';
 
 export interface GuideSource {
   title: string;
@@ -35,6 +35,11 @@ export interface GuideItem {
   gallery?: string[];
   mapQuery?: string;
   coordinates?: string;
+  googleMapsUrl?: string;
+  countryLabel?: string;
+  countryEmoji?: string;
+  importedListId?: string;
+  importedAt?: string;
 }
 
 export interface ThemeConfig {

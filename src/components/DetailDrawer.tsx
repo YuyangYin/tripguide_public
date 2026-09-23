@@ -106,14 +106,14 @@ export default function DetailDrawer({ item, onClose, theme }: DetailDrawerProps
         </div>
 
         <div className="p-6 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] space-y-6 flex-1">
-          {item.wikiTitle && <WikiImage title={item.wikiTitle} alt={item.title} className="h-52 w-full rounded-2xl object-cover" />}
+          {item.wikiTitle ? <WikiImage title={item.wikiTitle} alt={item.title} className="h-52 w-full rounded-2xl object-cover" /> : item.coverImage ? <img src={item.coverImage} alt={item.title} className="h-52 w-full rounded-2xl object-cover" loading="lazy" referrerPolicy="no-referrer" /> : null}
           {item.gallery && item.gallery.length > 0 && (
             <StackedGallery images={item.gallery} title={item.title} />
           )}
 
           {item.mapQuery && (
             <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.mapQuery)}`}
+              href={item.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.mapQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}

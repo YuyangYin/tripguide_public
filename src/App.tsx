@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect, Component, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { THEME_CONFIGS } from './data/guideData';
 import { TRIP_GUIDE_ITEMS } from './data/tripGuide';
-import { ThemeId, CountryId, CategoryId, GuideItem } from './types';
+import { ThemeId, CategoryId, GuideItem, type GuideCountryId } from './types';
 import { getTabBarStyle, getTabItemStyle, getCardStyle, isDarkTheme } from './lib/themeStyles';
 
 // Components
@@ -17,6 +17,10 @@ import VoucherFolder from './components/VoucherFolder';
 import VoucherPreview from './components/VoucherPreview';
 import EmergencyPhones from './components/EmergencyPhones';
 import ItineraryTimeline from './components/ItineraryTimeline';
+import GoogleMapsListImporter from './components/GoogleMapsListImporter';
+import { useSharedTable } from './lib/useSharedTable';
+import { mergeGuideItems } from './lib/googleMapsList';
+import { STOCKHOLM_GOOGLE_GUIDE_ITEMS } from './data/stockholmGooglePlaces';
 
 // Icons
 import { Search, Compass, ShieldAlert, ShoppingBag, CheckCircle, HelpCircle, X, MapPin, Ghost, BookOpen, Briefcase, FolderClosed, Coins, Calendar } from 'lucide-react';
@@ -52,6 +56,7 @@ const HANDBOOK_CATEGORIES = [
   { id: 'parking', name: '停车缴费', emoji: '🅿️' },
   { id: 'traffic', name: '路况法规', emoji: '🧭' },
   { id: 'grocery', name: '超市和免税店', emoji: '🛒' },
+  { id: 'stay', name: '住宿收藏', emoji: '🏨' },
   { id: 'activity', name: '游玩避坑', emoji: '✨' },
   { id: 'food', name: '吃好喝好', emoji: '🍽️' },
   { id: 'aurora', name: '极光猎人', emoji: '🌌' },
@@ -76,12 +81,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'handbook' | 'itinerary' | 'toolbox' | 'folder'>('itinerary');
 
   // Handbook country filter: horizontal tabs (top)
-  const [selectedCountry, setSelectedCountry] = useState<CountryId | 'all'>('all');
+  const [selectedCountry, setSelectedCountry] = useState<GuideCountryId | 'all'>('all');
 
   // Handbook category filter: vertical sidebar (left)
   const [selectedCategory, setSelectedCategory] = useState<CategoryId | 'all'>('all');
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [importedGuideItems, setImportedGuideItems, importedGuideLoaded, importedGuideError] = useSharedTable<GuideItem>('guide_items', 'trip_imported_guide_items_v1', STOCKHOLM_GOOGLE_GUIDE_ITEMS);
   const [activeItem, setActiveItem] = useState<GuideItem | null>(null);
   const [previewVoucherItem, setPreviewVoucherItem] = useState<any>(null);
   const [previewVoucherList, setPreviewVoucherList] = useState<any[]>([]);
@@ -135,7 +141,29 @@ export default function App() {
     return () => mediaQuery.removeEventListener('change', handleSystemChange);
   }, []);
 
-  const handbookItems = useMemo<GuideItem[]>(() => TRIP_GUIDE_ITEMS, []);
+  const handbookItems = useMemo<GuideItem[]>(() => mergeGuideItems(TRIP_GUIDE_ITEMS, importedGuideItems), [importedGuideItems]);
+  useEffect(() => {
+    if (!importedGuideLoaded) return;
+    const existingIds = new Set(importedGuideItems.map((item) => item.id));
+    const missing = STOCKHOLM_GOOGLE_GUIDE_ITEMS.filter((item) => !existingIds.has(item.id));
+    if (missing.length > 0) setImportedGuideItems((current) => [...current, ...missing]);
+  }, [importedGuideItems, importedGuideLoaded, setImportedGuideItems]);
+  const countryOptions = useMemo(() => {
+    const options = [...COUNTRIES_OPTIONS];
+    importedGuideItems.forEach((item) => {
+      if (options.some((option) => option.id === item.country) || item.country === 'both') return;
+      options.push({ id: item.country, label: item.countryLabel || String(item.country).replace(/^custom:/, ''), emoji: item.countryEmoji || '📍' } as (typeof options)[number]);
+    });
+    return options;
+  }, [importedGuideItems]);
+
+  const importGuideItems = (items: GuideItem[]) => {
+    setImportedGuideItems((current) => {
+      const byTitle = new Map(current.map((item) => [item.title.trim().toLowerCase(), item]));
+      items.forEach((item) => byTitle.set(item.title.trim().toLowerCase(), { ...byTitle.get(item.title.trim().toLowerCase()), ...item }));
+      return [...byTitle.values()];
+    });
+  };
 
   // Filtered handbook items based on vertical partition selection (country) & category & search query
   const filteredItems = useMemo(() => {
@@ -214,7 +242,7 @@ export default function App() {
                 <div className={`p-2 shrink-0 border-b flex gap-1.5 ${
                   isCyber ? 'border-[#00F5FF]/10' : 'border-stone-200/20'
                 }`}>
-                  {COUNTRIES_OPTIONS.map((cnt) => {
+                  {countryOptions.map((cnt) => {
                     const isSelected = selectedCountry === cnt.id;
                     return (
                       <button
@@ -311,7 +339,7 @@ export default function App() {
                           type="text"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder={`在${selectedCountry === 'all' ? '全部' : COUNTRIES_OPTIONS.find((country) => country.id === selectedCountry)?.label || ''}指南中搜索...`}
+                          placeholder={`在${selectedCountry === 'all' ? '全部' : countryOptions.find((country) => country.id === selectedCountry)?.label || ''}指南中搜索...`}
                           className={`w-full pl-9 pr-8 py-2 text-[11px] focus:outline-none transition-all duration-300 border ${
                             isCyber
                               ? 'bg-black/60 border-[#00F5FF]/30 text-white placeholder-stone-600 focus:border-[#00F5FF]'
@@ -333,6 +361,10 @@ export default function App() {
                           </button>
                         )}
                       </div>
+                    </div>
+                    <div className="px-3 pb-2 shrink-0">
+                      <GoogleMapsListImporter onImport={importGuideItems} />
+                      {importedGuideError && <p className="mt-1 text-[9px] font-bold text-red-500">收藏同步异常：{importedGuideError}</p>}
                     </div>
 
                     {/* Guides Scrollable items list */}
