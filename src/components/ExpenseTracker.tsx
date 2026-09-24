@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowRight, Check, ChevronDown, CircleDollarSign, Download, FileSpreadsheet, Pencil, Plus, Receipt, Trash2, Upload, X } from 'lucide-react';
 import { ThemeConfig } from '../types';
@@ -246,7 +247,34 @@ export default function ExpenseTracker({ theme }: ExpenseTrackerProps) {
         {importResult && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="max-h-[85%] w-full max-w-md overflow-y-auto rounded-2xl bg-stone-950 p-4 text-white"><div className="flex justify-between"><h4 className="font-black">导入预览 · {importResult.sheetName}</h4><button onClick={() => setImportResult(null)}><X className="h-4 w-4" /></button></div><p className="mt-1 text-[10px] opacity-60">识别 {importResult.rows.length} 笔账单</p><div className="mt-3 space-y-1.5">{importResult.rows.slice(0, 30).map((row) => <div key={row.id} className="rounded-lg bg-white/10 p-2 text-[10px]"><b>{row.title}</b><span className="float-right">{row.amount} {CURRENCY_LABELS[row.currency]}</span><p className="mt-1 opacity-60">{row.payerId} 支付 · {row.splitMemberIds?.join('/')} · {row.settled ? '已结算' : '未结算'}</p></div>)}</div>{importResult.warnings.map((warning) => <p key={warning} className="mt-1 text-[9px] text-amber-300">{warning}</p>)}<button onClick={applyImport} className="mt-4 w-full rounded-xl bg-sky-400 py-2.5 text-xs font-black text-slate-950">确认导入 {importResult.rows.length} 笔</button></div>
         </motion.div>}
-        {confirmDelete && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 grid place-items-center bg-black/60 p-4"><div className="w-full max-w-sm rounded-2xl bg-stone-950 p-4 text-white"><h4 className="font-black">删除账单</h4><p className="mt-2 text-xs opacity-70">确认删除“{confirmDelete.title}”？</p><div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => setConfirmDelete(null)} className="rounded-lg bg-white/10 py-2 text-xs">取消</button><button onClick={() => { setExpenses((current) => current.filter((item) => item.id !== confirmDelete.id)); setConfirmDelete(null); }} className="rounded-lg bg-red-500 py-2 text-xs font-black">删除</button></div></div></motion.div>}
+        {confirmDelete && createPortal(
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-expense-title"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[500] grid h-[100dvh] w-screen place-items-center bg-black/65 p-4 backdrop-blur-sm"
+            onClick={() => setConfirmDelete(null)}
+          >
+            <motion.div
+              initial={{ y: 14, scale: 0.96 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: 14, scale: 0.96 }}
+              onClick={(event) => event.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl border border-white/15 bg-stone-950 p-4 text-white shadow-2xl"
+            >
+              <h4 id="delete-expense-title" className="font-black">删除账单</h4>
+              <p className="mt-2 text-xs opacity-70">确认删除“{confirmDelete.title}”？</p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setConfirmDelete(null)} className="rounded-lg bg-white/10 py-2 text-xs">取消</button>
+                <button type="button" onClick={() => { setExpenses((current) => current.filter((item) => item.id !== confirmDelete.id)); setConfirmDelete(null); }} className="rounded-lg bg-red-500 py-2 text-xs font-black">删除</button>
+              </div>
+            </motion.div>
+          </motion.div>,
+          document.body,
+        )}
       </AnimatePresence>
     </div>
   );
